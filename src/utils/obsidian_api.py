@@ -70,7 +70,12 @@ class ObsidianAPI:
                 response.raise_for_status()
                 return response
             except httpx.ConnectError:
-                raise ConnectionError(ERROR_MESSAGES["connection_failed"])
+                raise ConnectionError(
+                    ERROR_MESSAGES["connection_failed"].format(
+                        url=url, 
+                        port=self.base_url.split(":")[-1]
+                    )
+                )
     
     async def get_vault_structure(self, path: Optional[str] = None) -> List[VaultItem]:
         """Get the vault structure."""

@@ -1,6 +1,8 @@
 """Main entry point for Obsidian MCP server."""
 
 import os
+from typing import Annotated, Optional, List, Literal
+from pydantic import Field
 from fastmcp import FastMCP
 from fastmcp.exceptions import McpError
 
@@ -31,15 +33,30 @@ mcp = FastMCP(
 
 # Register tools with proper error handling
 @mcp.tool()
-async def read_note_tool(path: str, ctx=None):
+async def read_note_tool(
+    path: Annotated[str, Field(
+        description="Path to the note relative to vault root",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Daily/2024-01-15.md", "Projects/AI Research.md", "Ideas/Quick Note.md"]
+    )],
+    ctx=None
+):
     """
     Read the content and metadata of a specific note.
     
-    Args:
-        path: Path to the note relative to vault root (e.g., "Daily/2024-01-15.md")
-        
+    When to use:
+    - Displaying note contents to the user
+    - Analyzing or processing existing note data
+    - Verifying a note exists before updating
+    
+    When NOT to use:
+    - Searching multiple notes (use search_notes instead)
+    - Getting only metadata (use get_note_info for efficiency)
+    
     Returns:
-        Note content and metadata
+        Note content and metadata including tags, aliases, and frontmatter
     """
     try:
         return await read_note(path, ctx)
@@ -107,16 +124,41 @@ async def delete_note_tool(path: str, ctx=None):
         raise McpError(f"Failed to delete note: {str(e)}")
 
 @mcp.tool()
-async def search_notes_tool(query: str, context_length: int = 100, ctx=None):
+async def search_notes_tool(
+    query: Annotated[str, Field(
+        description="Search query supporting Obsidian syntax",
+        min_length=1,
+        max_length=500,
+        examples=[
+            "machine learning",
+            "tag:#project",
+            "path:Daily/",
+            "tag:#urgent TODO"
+        ]
+    )],
+    context_length: Annotated[int, Field(
+        description="Number of characters to show around matches",
+        ge=10,
+        le=500,
+        default=100
+    )] = 100,
+    ctx=None
+):
     """
     Search for notes containing specific text or matching search criteria.
     
-    Args:
-        query: Search query (supports Obsidian search syntax)
-        context_length: Number of characters to show around matches (default: 100)
-        
+    When to use:
+    - Finding notes by content keywords
+    - Locating notes with specific tags
+    - Searching within specific folders
+    
+    When NOT to use:
+    - Searching by date (use search_by_date instead)
+    - Listing all notes (use list_notes for better performance)
+    - Finding a specific known note (use read_note directly)
+    
     Returns:
-        Search results with matched notes and context
+        Search results with matched notes, relevance scores, and context
     """
     try:
         return await search_notes(query, context_length, ctx)
@@ -126,17 +168,38 @@ async def search_notes_tool(query: str, context_length: int = 100, ctx=None):
         raise McpError(f"Search failed: {str(e)}")
 
 @mcp.tool()
-async def search_by_date_tool(date_type: str = "modified", days_ago: int = 7, operator: str = "within", ctx=None):
+async def search_by_date_tool(
+    date_type: Annotated[Literal["created", "modified"], Field(
+        description="Type of date to search by",
+        default="modified"
+    )] = "modified",
+    days_ago: Annotated[int, Field(
+        description="Number of days to look back from today",
+        ge=0,
+        le=365,
+        default=7,
+        examples=[0, 1, 7, 30]
+    )] = 7,
+    operator: Annotated[Literal["within", "exactly"], Field(
+        description="Search operator for date matching",
+        default="within"
+    )] = "within",
+    ctx=None
+):
     """
     Search for notes by creation or modification date.
     
-    Args:
-        date_type: Either "created" or "modified" (default: "modified")
-        days_ago: Number of days to look back (default: 7)
-        operator: Either "within" (last N days) or "exactly" (exactly N days ago) (default: "within")
-        
+    When to use:
+    - Finding recently modified notes
+    - Locating notes created in a specific time period
+    - Reviewing activity from specific dates
+    
+    When NOT to use:
+    - Content-based search (use search_notes)
+    - Finding notes by tags or path (use search_notes)
+    
     Returns:
-        Notes matching the date criteria
+        Notes matching the date criteria with paths and timestamps
     """
     try:
         return await search_by_date(date_type, days_ago, operator, ctx)
@@ -183,16 +246,35 @@ async def move_note_tool(source_path: str, destination_path: str, update_links: 
         raise McpError(f"Failed to move note: {str(e)}")
 
 @mcp.tool()
-async def add_tags_tool(path: str, tags: list[str], ctx=None):
+async def add_tags_tool(
+    path: Annotated[str, Field(
+        description="Path to the note",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255
+    )],
+    tags: Annotated[List[str], Field(
+        description="Tags to add (without # prefix)",
+        min_items=1,
+        max_items=50,
+        examples=[["project", "urgent"], ["meeting", "followup", "q1-2024"]]
+    )],
+    ctx=None
+):
     """
     Add tags to a note's frontmatter.
     
-    Args:
-        path: Path to the note
-        tags: List of tags to add (without # prefix)
-        
+    When to use:
+    - Organizing notes with tags
+    - Bulk tagging operations
+    - Adding metadata for search
+    
+    When NOT to use:
+    - Adding tags in note content (use update_note)
+    - Replacing all tags (use update_note with new frontmatter)
+    
     Returns:
-        Updated tag list
+        Updated tag list for the note
     """
     try:
         return await add_tags(path, tags, ctx)

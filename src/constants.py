@@ -17,11 +17,69 @@ ENDPOINTS = {
 # File extensions
 MARKDOWN_EXTENSIONS = {".md", ".markdown"}
 
-# Error messages
+# Error messages - Actionable and specific
 ERROR_MESSAGES = {
-    "connection_failed": "Failed to connect to Obsidian. Ensure Obsidian is running with the Local REST API plugin enabled.",
-    "note_not_found": "Note not found at path: {path}",
-    "invalid_path": "Invalid note path: {path}",
-    "overwrite_protection": "Note already exists at {path}. Set overwrite=true to replace it.",
-    "api_key_missing": "OBSIDIAN_REST_API_KEY environment variable not set",
+    "connection_failed": (
+        "Cannot connect to Obsidian REST API at {url}. "
+        "To fix: 1) Ensure Obsidian is running, 2) Enable the Local REST API plugin in Obsidian settings, "
+        "3) Verify the API is running on port {port}, 4) Check if your firewall is blocking local connections"
+    ),
+    "note_not_found": (
+        "Note not found at path: '{path}'. "
+        "To fix: 1) Check if the path is correct (case-sensitive), 2) Ensure the note exists in your vault, "
+        "3) Use list_notes to see available notes in the directory"
+    ),
+    "invalid_path": (
+        "Invalid note path: '{path}'. "
+        "Valid paths must: 1) End with .md or .markdown, 2) Use forward slashes (e.g., 'folder/note.md'), "
+        "3) Not contain '..' or start with '/', 4) Not exceed 255 characters. "
+        "Example: 'Daily/2024-01-15.md' or 'Projects/My Project.md'"
+    ),
+    "overwrite_protection": (
+        "Note already exists at '{path}'. "
+        "To proceed: 1) Set overwrite=true to replace the existing note, "
+        "2) Use update_note to modify the existing note, "
+        "3) Choose a different path for the new note"
+    ),
+    "api_key_missing": (
+        "OBSIDIAN_REST_API_KEY environment variable not set. "
+        "To fix: 1) Open Obsidian settings > Community plugins > Local REST API, "
+        "2) Copy the API key shown there, "
+        "3) Set the environment variable: export OBSIDIAN_REST_API_KEY='your-key-here'"
+    ),
+    "empty_search_query": (
+        "Search query cannot be empty. "
+        "Valid queries: 1) Keywords: 'machine learning', "
+        "2) Tags: 'tag:#project', 3) Paths: 'path:Daily/', "
+        "4) Combined: 'tag:#urgent TODO'"
+    ),
+    "invalid_date_type": (
+        "Invalid date_type: '{date_type}'. "
+        "Must be either 'created' or 'modified'. "
+        "Use 'created' to find notes by creation date, 'modified' for last edit date"
+    ),
+    "invalid_operator": (
+        "Invalid operator: '{operator}'. "
+        "Must be either 'within' or 'exactly'. "
+        "Use 'within' for date ranges (e.g., last 7 days), 'exactly' for specific days ago"
+    ),
+    "negative_days": (
+        "Invalid days_ago: {days}. "
+        "Must be a positive number (0 or greater). "
+        "Use 0 for today, 1 for yesterday, 7 for last week, etc."
+    ),
+    "invalid_tags": (
+        "Invalid tags provided. "
+        "Tags must be non-empty strings without the # prefix. "
+        "Example: ['project', 'urgent', 'review'] not ['#project', '', ' ']"
+    ),
+    "path_too_long": (
+        "Path too long: {length} characters (max: 255). "
+        "To fix: Use shorter folder/file names or reduce nesting depth"
+    ),
+    "invalid_context_length": (
+        "Invalid context_length: {length}. "
+        "Must be between 10 and 500 characters. "
+        "Use smaller values for brief previews, larger for more context"
+    ),
 }

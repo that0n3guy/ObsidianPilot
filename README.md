@@ -14,6 +14,16 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 - 🔒 **Secure communication** with API key authentication
 - 🧪 **Comprehensive testing** suite with unit, integration, and live tests
 
+### Enhanced for AI Reasoning
+
+This MCP server follows best practices for AI-friendly design:
+
+- **🎯 Rich Parameter Validation**: All inputs are validated with clear constraints and helpful error messages
+- **📋 JSON Schema Metadata**: Tools provide detailed schemas with examples, patterns, and limits
+- **💬 Actionable Error Messages**: Errors explain what went wrong and how to fix it
+- **📚 Comprehensive Documentation**: Each tool includes "when to use" and "when NOT to use" guidance
+- **🔍 Smart Defaults**: Sensible defaults for optional parameters reduce complexity
+
 ## Prerequisites
 
 - **Obsidian** with the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin installed and enabled
@@ -63,7 +73,7 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 ```
 obsidian-mcp/
 ├── src/
-│   ├── server.py           # Main entry point, tool registration
+│   ├── server.py           # Main entry point with rich parameter schemas
 │   ├── tools/              # Tool implementations
 │   │   ├── note_management.py    # CRUD operations
 │   │   ├── search_discovery.py   # Search and navigation
@@ -72,8 +82,9 @@ obsidian-mcp/
 │   │   └── obsidian.py    # Note, SearchResult, VaultItem models
 │   ├── utils/              # Shared utilities
 │   │   ├── obsidian_api.py      # REST API client wrapper
-│   │   └── validators.py        # Path validation, sanitization
-│   └── constants.py       # API endpoints, defaults, error messages
+│   │   ├── validators.py        # Path validation, sanitization
+│   │   └── validation.py        # Comprehensive parameter validation
+│   └── constants.py       # API endpoints, defaults, enhanced error messages
 ├── tests/
 │   ├── run_tests.py       # Smart test runner
 │   ├── test_unit.py       # Unit tests with mocks
@@ -319,6 +330,35 @@ python tests/test_data_validation.py   # Data structure validation
 
 3. **Verify connection** - the Obsidian tools should appear in Claude's tool list
 
+## Enhanced Error Handling
+
+The server provides detailed, actionable error messages to help AI systems recover from errors:
+
+### Example Error Messages
+
+**Invalid Path**:
+```
+Invalid note path: '../../../etc/passwd'. 
+Valid paths must: 1) End with .md or .markdown, 2) Use forward slashes (e.g., 'folder/note.md'), 
+3) Not contain '..' or start with '/', 4) Not exceed 255 characters. 
+Example: 'Daily/2024-01-15.md' or 'Projects/My Project.md'
+```
+
+**Empty Search Query**:
+```
+Search query cannot be empty. 
+Valid queries: 1) Keywords: 'machine learning', 
+2) Tags: 'tag:#project', 3) Paths: 'path:Daily/', 
+4) Combined: 'tag:#urgent TODO'
+```
+
+**Invalid Date Parameters**:
+```
+Invalid date_type: 'invalid'. 
+Must be either 'created' or 'modified'. 
+Use 'created' to find notes by creation date, 'modified' for last edit date
+```
+
 ## Troubleshooting
 
 ### "Connection refused" error
@@ -326,6 +366,7 @@ python tests/test_data_validation.py   # Data structure validation
 - Verify the Local REST API plugin is enabled
 - Check that the port matches (default: 27124)
 - Confirm the API key is correct
+- The enhanced error will show the exact URL and port being used
 
 ### "Certificate verify failed" error
 - This is expected with the Local REST API's self-signed certificate

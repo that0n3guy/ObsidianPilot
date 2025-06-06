@@ -3,6 +3,7 @@
 from typing import Optional
 from fastmcp import Context
 from ..utils import ObsidianAPI, validate_note_path, sanitize_path
+from ..utils.validation import validate_content
 from ..models import Note
 from ..constants import ERROR_MESSAGES
 
@@ -95,6 +96,11 @@ async def create_note(
     is_valid, error_msg = validate_note_path(path)
     if not is_valid:
         raise ValueError(f"Invalid path: {error_msg}")
+    
+    # Validate content
+    is_valid, error_msg = validate_content(content)
+    if not is_valid:
+        raise ValueError(error_msg)
     
     # Sanitize path
     path = sanitize_path(path)

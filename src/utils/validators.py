@@ -2,7 +2,7 @@
 
 import os
 from typing import Optional
-from ..constants import MARKDOWN_EXTENSIONS
+from ..constants import MARKDOWN_EXTENSIONS, ERROR_MESSAGES
 
 
 def validate_note_path(path: str) -> tuple[bool, Optional[str]]:
@@ -18,15 +18,23 @@ def validate_note_path(path: str) -> tuple[bool, Optional[str]]:
     if not path:
         return False, "Path cannot be empty"
     
+    # Check length
+    if len(path) > 255:
+        return False, ERROR_MESSAGES["path_too_long"].format(length=len(path))
+    
     # Check for path traversal attempts
     if ".." in path or path.startswith("/"):
-        return False, "Path cannot contain '..' or start with '/'"
+        return False, ERROR_MESSAGES["invalid_path"].format(path=path)
+    
+    # Check extension
+    if not any(path.endswith(ext) for ext in MARKDOWN_EXTENSIONS):
+        return False, ERROR_MESSAGES["invalid_path"].format(path=path)
     
     # Check for invalid characters
     invalid_chars = ["<", ">", ":", '"', "|", "?", "*"]
     for char in invalid_chars:
         if char in path:
-            return False, f"Path contains invalid character: {char}"
+            return False, ERROR_MESSAGES["invalid_path"].format(path=path)
     
     return True, None
 

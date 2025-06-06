@@ -4,6 +4,7 @@ import re
 from typing import List, Dict, Any, Optional
 from fastmcp import Context
 from ..utils import ObsidianAPI, validate_note_path, sanitize_path
+from ..utils.validation import validate_tags
 from ..models import Note, NoteMetadata, Tag
 from ..constants import ERROR_MESSAGES
 
@@ -123,10 +124,13 @@ async def add_tags(
     
     path = sanitize_path(path)
     
-    # Clean tags (remove # prefix if present)
+    # Validate tags
+    is_valid, error = validate_tags(tags)
+    if not is_valid:
+        raise ValueError(error)
+    
+    # Clean tags (remove # prefix if present) - validation already does this
     tags = [tag.lstrip("#").strip() for tag in tags if tag.strip()]
-    if not tags:
-        raise ValueError("No valid tags provided")
     
     if ctx:
         ctx.info(f"Adding tags to {path}: {tags}")
@@ -187,10 +191,13 @@ async def remove_tags(
     
     path = sanitize_path(path)
     
-    # Clean tags
+    # Validate tags
+    is_valid, error = validate_tags(tags)
+    if not is_valid:
+        raise ValueError(error)
+    
+    # Clean tags (remove # prefix if present) - validation already does this
     tags = [tag.lstrip("#").strip() for tag in tags if tag.strip()]
-    if not tags:
-        raise ValueError("No valid tags provided")
     
     if ctx:
         ctx.info(f"Removing tags from {path}: {tags}")

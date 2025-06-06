@@ -3,7 +3,14 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
 from ..utils import ObsidianAPI, is_markdown_file
+from ..utils.validation import (
+    validate_search_query,
+    validate_context_length,
+    validate_date_search_params,
+    validate_directory_path
+)
 from ..models import VaultItem
+from ..constants import ERROR_MESSAGES
 
 
 async def search_notes(
@@ -40,8 +47,14 @@ async def search_notes(
             ]
         }
     """
-    if not query.strip():
-        raise ValueError("Search query cannot be empty")
+    # Validate parameters
+    is_valid, error = validate_search_query(query)
+    if not is_valid:
+        raise ValueError(error)
+    
+    is_valid, error = validate_context_length(context_length)
+    if not is_valid:
+        raise ValueError(error)
     
     if ctx:
         ctx.info(f"Searching notes with query: {query}")
@@ -129,14 +142,10 @@ async def search_by_date(
             ]
         }
     """
-    if date_type not in ["created", "modified"]:
-        raise ValueError("date_type must be either 'created' or 'modified'")
-    
-    if operator not in ["within", "exactly"]:
-        raise ValueError("operator must be either 'within' or 'exactly'")
-    
-    if days_ago < 0:
-        raise ValueError("days_ago must be a positive number")
+    # Validate parameters
+    is_valid, error = validate_date_search_params(date_type, days_ago, operator)
+    if not is_valid:
+        raise ValueError(error)
     
     # Calculate the date threshold
     now = datetime.now()
@@ -259,6 +268,11 @@ async def list_notes(
             ]
         }
     """
+    # Validate directory parameter
+    is_valid, error = validate_directory_path(directory)
+    if not is_valid:
+        raise ValueError(error)
+    
     if ctx:
         if directory:
             ctx.info(f"Listing notes in: {directory}")
