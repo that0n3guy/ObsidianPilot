@@ -7,6 +7,7 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 - 📖 **Read notes** from your Obsidian vault
 - ✍️ **Create and update notes** with automatic overwrite protection
 - 🔍 **Search notes** using Obsidian's search functionality
+- 📅 **Search by date** to find notes created or modified within specific time periods
 - 📁 **List notes** recursively or by directory
 - 🏷️ **Manage tags** in note frontmatter
 - 📊 **Get note statistics** including word count and links
@@ -141,6 +142,34 @@ Search for notes containing specific text.
 - `context_length` (default: `100`): Number of characters to show around matches
 
 **Note:** Search functionality may have connectivity issues with some REST API configurations.
+
+#### `search_by_date`
+Search for notes by creation or modification date.
+
+**Parameters:**
+- `date_type` (default: `"modified"`): Either "created" or "modified"
+- `days_ago` (default: `7`): Number of days to look back
+- `operator` (default: `"within"`): Either "within" (last N days) or "exactly" (exactly N days ago)
+
+**Returns:**
+```json
+{
+  "query": "Notes modified within last 7 days",
+  "count": 15,
+  "results": [
+    {
+      "path": "Daily/2024-01-15.md",
+      "date": "2024-01-15T10:30:00",
+      "days_ago": 1
+    }
+  ]
+}
+```
+
+**Example usage:**
+- "Show me all notes modified this week" → `search_by_date("modified", 7, "within")`
+- "Find notes created in the last 30 days" → `search_by_date("created", 30, "within")`
+- "What notes were modified exactly 2 days ago?" → `search_by_date("modified", 2, "exactly")`
 
 #### `list_notes`
 List notes in your vault with optional recursive traversal.
