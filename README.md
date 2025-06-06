@@ -4,25 +4,13 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
 ## Features
 
-- 📖 **Read notes** from your Obsidian vault
-- ✍️ **Create and update notes** with automatic overwrite protection
-- 🔍 **Search notes** using Obsidian's search functionality
-- 📅 **Search by date** to find notes created or modified within specific time periods
-- 📁 **List notes** recursively or by directory
-- 🏷️ **Manage tags** in note frontmatter
-- 📊 **Get note statistics** including word count and links
-- 🔒 **Secure communication** with API key authentication
-- 🧪 **Comprehensive testing** suite with unit, integration, and live tests
-
-### Enhanced for AI Reasoning
-
-This MCP server follows best practices for AI-friendly design:
-
-- **🎯 Rich Parameter Validation**: All inputs are validated with clear constraints and helpful error messages
-- **📋 JSON Schema Metadata**: Tools provide detailed schemas with examples, patterns, and limits
-- **💬 Actionable Error Messages**: Errors explain what went wrong and how to fix it
-- **📚 Comprehensive Documentation**: Each tool includes "when to use" and "when NOT to use" guidance
-- **🔍 Smart Defaults**: Sensible defaults for optional parameters reduce complexity
+- 📖 **Read & write notes** - Full access to your Obsidian vault with automatic overwrite protection
+- 🔍 **Smart search** - Find notes by content, tags, or modification date
+- 📁 **Browse vault** - List and navigate your notes by directory
+- 🏷️ **Tag management** - Add, remove, and organize tags in frontmatter
+- 📊 **Note insights** - Get statistics like word count and link analysis
+- 🎯 **AI-optimized** - Clear error messages and smart defaults for better AI interactions
+- 🔒 **Secure** - API key authentication with local-only connections
 
 ## Prerequisites
 
@@ -34,21 +22,16 @@ This MCP server follows best practices for AI-friendly design:
 
 ### Quick Install
 
-Run the Obsidian MCP server without cloning the repository:
-
-```bash
-uvx obsidian-mcp
-```
-
-#### Setup Instructions
-
 1. **Install and configure Obsidian:**
    - Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin in Obsidian
    - Enable the plugin in Settings > Community plugins
    - Go to Settings > Local REST API
    - Copy your API key (you'll need this for step 2)
 
-2. **Add to Claude Desktop:**
+2. **Configure your AI tool:**
+
+   <details>
+   <summary><b>Claude Desktop</b></summary>
    
    Edit your Claude Desktop config file:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -67,12 +50,71 @@ uvx obsidian-mcp
      }
    }
    ```
+   </details>
+
+   <details>
+   <summary><b>Cursor IDE</b></summary>
    
+   Add to your Cursor settings:
+   - Project-specific: `.cursor/mcp.json` in your project directory
+   - Global: `~/.cursor/mcp.json` in your home directory
+
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "uvx",
+         "args": ["obsidian-mcp"],
+         "env": {
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+   
+   Then: Open Settings → Cursor Settings → Enable MCP
+   </details>
+
+   <details>
+   <summary><b>Windsurf IDE</b></summary>
+   
+   Edit your Windsurf config file:
+   - Location: `~/.codeium/windsurf/mcp_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "uvx",
+         "args": ["obsidian-mcp"],
+         "env": {
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+   
+   Then: Open Windsurf Settings → Advanced Settings → Cascade → Add Server → Refresh
+   </details>
+
    Replace `your-api-key-here` with the API key you copied from Obsidian.
 
-3. **Restart Claude Desktop** to load the new configuration.
+3. **Restart your AI tool** to load the new configuration.
 
-That's it! The server will now be available in Claude with access to your Obsidian vault.
+That's it! The server will now be available in your AI tool with access to your Obsidian vault.
+
+> **Note:** This uses `uvx` which automatically downloads and runs the server in an isolated environment. Most users won't need to install anything else. If you don't have `uv` installed, you can also use `pipx install obsidian-mcp` and change the command to `"obsidian-mcp"` in the config.
+
+#### Try It Out
+
+Here are some example prompts to get started:
+
+- "Show me all notes I modified this week"
+- "Create a new daily note for today with my meeting agenda"
+- "Search for all notes about project planning"
+- "Read my Ideas/startup.md note"
 
 ### Development Installation
 
@@ -472,24 +514,36 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 To publish a new version to PyPI:
 
 ```bash
-# Update version in pyproject.toml
-# Build the package
+# 1. Update version in pyproject.toml
+# 2. Clean old builds
+rm -rf dist/ build/ *.egg-info/
+
+# 3. Build the package
 python -m build
 
-# Test locally
-pip install dist/*.whl
-obsidian-mcp --version
+# 4. Check the package
+twine check dist/*
 
-# Upload to TestPyPI first (optional)
-twine upload --repository testpypi dist/*
+# 5. Upload to PyPI
+twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
-# Upload to PyPI
-twine upload dist/*
+# 6. Create and push git tag
+git tag -a v1.1.0 -m "Release version 1.1.0"
+git push origin v1.1.0
 ```
 
-Users can then run with:
+Users can then install and run with:
 ```bash
+# Using uvx (recommended - no installation needed)
 uvx obsidian-mcp
+
+# Or install globally with pipx
+pipx install obsidian-mcp
+obsidian-mcp
+
+# Or with pip
+pip install obsidian-mcp
+obsidian-mcp
 ```
 
 ## Contributing
