@@ -139,7 +139,19 @@ class ObsidianAPI:
             Created note
         """
         endpoint = ENDPOINTS["vault_path"].format(path=path)
-        await self._request("PUT", endpoint, json_data={"content": content})
+        
+        # Send content as plain text markdown, not JSON
+        async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
+            url = f"{self.base_url}{endpoint}"
+            headers = self.headers.copy()
+            headers["Content-Type"] = "text/markdown"
+            
+            response = await client.put(
+                url,
+                headers=headers,
+                content=content  # Send as plain text, not JSON
+            )
+            response.raise_for_status()
         
         # Fetch the created note to get metadata
         return await self.get_note(path)
@@ -156,8 +168,19 @@ class ObsidianAPI:
             Updated note
         """
         endpoint = ENDPOINTS["vault_path"].format(path=path)
-        # Use PUT to replace the entire content
-        await self._request("PUT", endpoint, json_data={"content": content})
+        
+        # Send content as plain text markdown, not JSON
+        async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
+            url = f"{self.base_url}{endpoint}"
+            headers = self.headers.copy()
+            headers["Content-Type"] = "text/markdown"
+            
+            response = await client.put(
+                url,
+                headers=headers,
+                content=content  # Send as plain text, not JSON
+            )
+            response.raise_for_status()
         
         # Fetch the updated note to get fresh metadata
         return await self.get_note(path)
