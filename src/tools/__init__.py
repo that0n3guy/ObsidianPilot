@@ -8,6 +8,7 @@ from .note_management import (
 )
 from .search_discovery import (
     search_notes,
+    search_by_date,
     list_notes,
 )
 from .organization import (
@@ -25,6 +26,7 @@ __all__ = [
     "delete_note",
     # Search and discovery
     "search_notes",
+    "search_by_date",
     "list_notes",
     # Organization
     "move_note",

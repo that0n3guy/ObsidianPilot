@@ -302,6 +302,73 @@ class ObsidianAPI:
             except httpx.HTTPStatusError as e:
                 raise ConnectionError(f"Search failed with status {e.response.status_code}")
     
+    async def search_with_jsonlogic(self, json_logic_query: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Search using JsonLogic queries for advanced filtering.
+        
+        Args:
+            json_logic_query: JsonLogic query object
+            
+        Returns:
+            List of search results
+        """
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+                url = f"{self.base_url}/search"
+                headers = self.headers.copy()
+                headers["Content-Type"] = "application/vnd.olrapi.jsonlogic+json"
+                
+                response = await client.post(
+                    url,
+                    headers=headers,
+                    json=json_logic_query
+                )
+                response.raise_for_status()
+                
+                # Response from JsonLogic search has a different structure
+                results = response.json()
+                
+                # Format results to match expected structure
+                formatted_results = []
+                
+                if isinstance(results, list):
+                    for result in results:
+                        # Handle different response formats
+                        if isinstance(result, str):
+                            # Simple string path
+                            formatted_results.append({
+                                "path": result,
+                                "filename": result
+                            })
+                        elif isinstance(result, dict):
+                            # Complex result with stat info
+                            filename = None
+                            if "filename" in result and isinstance(result["filename"], dict):
+                                filename = result["filename"].get("filename")
+                            elif "path" in result and isinstance(result["path"], dict):
+                                filename = result["path"].get("filename")
+                            elif "filename" in result and isinstance(result["filename"], str):
+                                filename = result["filename"]
+                            elif "path" in result and isinstance(result["path"], str):
+                                filename = result["path"]
+                            
+                            if filename:
+                                formatted_result = {
+                                    "path": filename,
+                                    "filename": filename
+                                }
+                                # Include stat info if available
+                                if "stat" in result:
+                                    formatted_result["stat"] = result["stat"]
+                                formatted_results.append(formatted_result)
+                
+                return formatted_results
+                
+        except (httpx.TimeoutException, httpx.ConnectError):
+            raise ConnectionError("Search endpoint timed out or is not available")
+        except httpx.HTTPStatusError as e:
+            raise ConnectionError(f"Search failed with status {e.response.status_code}")
+    
     def _parse_vault_items(self, items: List[str]) -> List[VaultItem]:
         """Parse vault items from API response."""
         result = []

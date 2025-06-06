@@ -1,22 +1,21 @@
 """Search and discovery tools for Obsidian MCP server."""
 
 from typing import List, Optional
-from fastmcp import Context
+from datetime import datetime, timedelta
 from ..utils import ObsidianAPI, is_markdown_file
-from ..models import SearchResult, VaultItem
-from ..constants import DEFAULT_SEARCH_CONTEXT_LENGTH, DEFAULT_LIST_RECURSIVE
+from ..models import VaultItem
 
 
 async def search_notes(
     query: str,
-    context_length: int = DEFAULT_SEARCH_CONTEXT_LENGTH,
-    ctx: Context = None
+    context_length: int = 100,
+    ctx=None
 ) -> dict:
     """
     Search for notes containing specific text or matching search criteria.
     
-    Use this tool to find notes in your vault that match a search query.
-    Supports Obsidian's search syntax including tags, phrases, and operators.
+    Use this tool to find notes by content, title, or metadata. Supports
+    Obsidian's search syntax including tags, paths, and content matching.
     
     Args:
         query: Search query (supports Obsidian search syntax)
@@ -75,18 +74,18 @@ async def search_notes(
             start = max(0, match.get("start", 0) - context_length // 2)
             end = min(len(content), match.get("end", 0) + context_length // 2)
             context = content[start:end].strip()
-            if start > 0:
-                context = "..." + context
-            if end < len(content):
-                context = context + "..."
-            contexts.append(context)
+            if context:
+                contexts.append(context)
         
         formatted_results.append({
-            "path": result["path"],
-            "score": result.get("score", 0.0),
-            "matches": [m.get("match", "") for m in matches[:3]],
-            "context": " | ".join(contexts) if contexts else ""
+            "path": result.get("path", result.get("filename", "")),
+            "score": result.get("score", 1.0),
+            "matches": matches,
+            "context": " ... ".join(contexts) if contexts else ""
         })
+    
+    # Sort by score
+    formatted_results.sort(key=lambda x: x["score"], reverse=True)
     
     return {
         "query": query,
@@ -95,17 +94,150 @@ async def search_notes(
     }
 
 
+async def search_by_date(
+    date_type: str = "modified",
+    days_ago: int = 7,
+    operator: str = "within",
+    ctx=None
+) -> dict:
+    """
+    Search for notes by creation or modification date.
+    
+    Use this tool to find notes created or modified within a specific time period.
+    This is useful for finding recent work, tracking activity, or reviewing old notes.
+    
+    Args:
+        date_type: Either "created" or "modified" (default: "modified")
+        days_ago: Number of days to look back (default: 7)
+        operator: Either "within" (last N days) or "exactly" (exactly N days ago) (default: "within")
+        ctx: MCP context for progress reporting
+        
+    Returns:
+        Dictionary containing search results with matched notes
+        
+    Example:
+        >>> await search_by_date("modified", 7, "within", ctx=ctx)
+        {
+            "query": "Notes modified within last 7 days",
+            "count": 15,
+            "results": [
+                {
+                    "path": "Daily/2024-01-15.md",
+                    "date": "2024-01-15T10:30:00Z",
+                    "days_ago": 1
+                }
+            ]
+        }
+    """
+    if date_type not in ["created", "modified"]:
+        raise ValueError("date_type must be either 'created' or 'modified'")
+    
+    if operator not in ["within", "exactly"]:
+        raise ValueError("operator must be either 'within' or 'exactly'")
+    
+    if days_ago < 0:
+        raise ValueError("days_ago must be a positive number")
+    
+    # Calculate the date threshold
+    now = datetime.now()
+    
+    if operator == "within":
+        # For "within", we want notes from (now - days_ago) to now
+        start_date = now - timedelta(days=days_ago)
+        query_description = f"Notes {date_type} within last {days_ago} days"
+    else:
+        # For "exactly", we want notes from that specific day
+        start_date = now - timedelta(days=days_ago)
+        end_date = start_date + timedelta(days=1)
+        query_description = f"Notes {date_type} exactly {days_ago} days ago"
+    
+    if ctx:
+        ctx.info(f"Searching for {query_description}")
+    
+    api = ObsidianAPI()
+    
+    # Use JsonLogic to search by date
+    # The stat object contains ctime (created) and mtime (modified) as Unix timestamps
+    stat_field = "ctime" if date_type == "created" else "mtime"
+    
+    # Convert dates to Unix timestamps (milliseconds)
+    start_timestamp = int(start_date.timestamp() * 1000)
+    
+    if operator == "within":
+        # Search for notes where stat.mtime >= start_timestamp
+        json_logic_query = {
+            ">=": [
+                {"var": f"stat.{stat_field}"},
+                start_timestamp
+            ]
+        }
+    else:
+        # Search for notes where start_timestamp <= stat.mtime < end_timestamp
+        end_timestamp = int(end_date.timestamp() * 1000)
+        json_logic_query = {
+            "and": [
+                {">=": [{"var": f"stat.{stat_field}"}, start_timestamp]},
+                {"<": [{"var": f"stat.{stat_field}"}, end_timestamp]}
+            ]
+        }
+    
+    try:
+        results = await api.search_with_jsonlogic(json_logic_query)
+        
+        # Format results with date information
+        formatted_results = []
+        for result in results:
+            # Get the file path
+            file_path = result.get("path", result.get("filename", ""))
+            
+            # Try to get the actual date from the result
+            if isinstance(result, dict) and "stat" in result:
+                timestamp = result["stat"].get(stat_field, 0) / 1000  # Convert from ms to seconds
+                file_date = datetime.fromtimestamp(timestamp)
+            else:
+                # Fallback: we know it matches our criteria
+                file_date = start_date
+            
+            # Calculate days ago
+            days_diff = (now - file_date).days
+            
+            formatted_results.append({
+                "path": file_path,
+                "date": file_date.isoformat(),
+                "days_ago": days_diff
+            })
+        
+        # Sort by date (most recent first)
+        formatted_results.sort(key=lambda x: x["date"], reverse=True)
+        
+        return {
+            "query": query_description,
+            "count": len(formatted_results),
+            "results": formatted_results
+        }
+        
+    except Exception as e:
+        if ctx:
+            ctx.info(f"Date search failed: {str(e)}")
+        return {
+            "query": query_description,
+            "count": 0,
+            "results": [],
+            "error": f"Date-based search is not available: {str(e)}"
+        }
+
+
 async def list_notes(
     directory: Optional[str] = None,
-    recursive: bool = DEFAULT_LIST_RECURSIVE,
-    ctx: Context = None
+    recursive: bool = True,
+    ctx=None
 ) -> dict:
     """
     List notes in the vault or a specific directory.
     
-    Use this tool to browse the structure of your Obsidian vault and discover
-    what notes are available. Can list all notes recursively or just those
-    in a specific directory.
+    Use this tool to browse the vault structure and discover notes. You can list
+    all notes or focus on a specific directory. This is helpful when you know
+    the general location but not the exact filename.
     
     Args:
         directory: Specific directory to list (optional, defaults to root)
@@ -113,19 +245,18 @@ async def list_notes(
         ctx: MCP context for progress reporting
         
     Returns:
-        Dictionary containing the vault structure and note paths
+        Dictionary containing vault structure and note paths
         
     Example:
-        >>> await list_notes("Projects", recursive=False, ctx=ctx)
+        >>> await list_notes("Projects", recursive=True, ctx=ctx)
         {
             "directory": "Projects",
-            "recursive": false,
-            "count": 5,
+            "recursive": true,
+            "count": 12,
             "notes": [
-                {"path": "Projects/AI Assistant.md", "name": "AI Assistant.md"},
-                {"path": "Projects/Web App.md", "name": "Web App.md"}
-            ],
-            "folders": ["Projects/Archive", "Projects/Active"]
+                {"path": "Projects/Web App.md", "name": "Web App.md"},
+                {"path": "Projects/Ideas/AI Assistant.md", "name": "AI Assistant.md"}
+            ]
         }
     """
     if ctx:
@@ -174,15 +305,9 @@ async def list_notes(
     notes.sort(key=lambda x: x["path"])
     folders = sorted(list(folders))
     
-    result = {
+    return {
         "directory": directory or "/",
         "recursive": recursive,
         "count": len(notes),
         "notes": notes
     }
-    
-    # Only include folders if not recursive (to avoid clutter)
-    if not recursive:
-        result["folders"] = folders
-    
-    return result

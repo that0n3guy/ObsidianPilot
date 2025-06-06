@@ -11,6 +11,7 @@ from .tools import (
     update_note,
     delete_note,
     search_notes,
+    search_by_date,
     list_notes,
     move_note,
     add_tags,
@@ -123,6 +124,26 @@ async def search_notes_tool(query: str, context_length: int = 100, ctx=None):
         raise McpError(str(e))
     except Exception as e:
         raise McpError(f"Search failed: {str(e)}")
+
+@mcp.tool()
+async def search_by_date_tool(date_type: str = "modified", days_ago: int = 7, operator: str = "within", ctx=None):
+    """
+    Search for notes by creation or modification date.
+    
+    Args:
+        date_type: Either "created" or "modified" (default: "modified")
+        days_ago: Number of days to look back (default: 7)
+        operator: Either "within" (last N days) or "exactly" (exactly N days ago) (default: "within")
+        
+    Returns:
+        Notes matching the date criteria
+    """
+    try:
+        return await search_by_date(date_type, days_ago, operator, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Date search failed: {str(e)}")
 
 @mcp.tool()
 async def list_notes_tool(directory: str = None, recursive: bool = True, ctx=None):

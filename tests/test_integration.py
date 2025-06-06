@@ -69,7 +69,8 @@ class TestToolIntegration:
             
             assert result["count"] == 1
             assert result["results"][0]["path"] == "notes/test.md"
-            assert "test" in result["results"][0]["matches"]
+            # matches is a list of dicts, check if any match contains "test"
+            assert any(m["match"] == "test" for m in result["results"][0]["matches"])
     
     @pytest.mark.asyncio
     async def test_list_notes_integration(self):
