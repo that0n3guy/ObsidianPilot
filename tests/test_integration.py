@@ -121,6 +121,62 @@ class TestToolIntegration:
             mock_api.update_note.assert_called_once()
     
     @pytest.mark.asyncio
+    async def test_update_note_merge_strategies(self):
+        """Test update note with different merge strategies."""
+        ctx = MockContext()
+        
+        with patch('src.tools.note_management.ObsidianAPI') as mock_api_class:
+            mock_api = mock_api_class.return_value
+            
+            # Existing note
+            existing_note = Note(
+                path="test/note.md",
+                content="# Original Content\n\nOriginal text here.",
+                metadata=NoteMetadata()
+            )
+            
+            # Test append strategy
+            mock_api.get_note = AsyncMock(return_value=existing_note)
+            expected_appended = existing_note.content.rstrip() + "\n\n## New Section\n\nAdditional content."
+            appended_note = Note(
+                path=existing_note.path,
+                content=expected_appended,
+                metadata=existing_note.metadata
+            )
+            mock_api.update_note = AsyncMock(return_value=appended_note)
+            
+            result = await update_note(
+                "test/note.md",
+                "## New Section\n\nAdditional content.",
+                merge_strategy="append",
+                ctx=ctx
+            )
+            
+            assert result["updated"] is True
+            assert result["merge_strategy"] == "append"
+            mock_api.update_note.assert_called_with("test/note.md", expected_appended)
+            
+            # Test replace strategy (default)
+            mock_api.get_note = AsyncMock(return_value=existing_note)
+            new_content = "# Completely New Content\n\nReplaced everything."
+            replaced_note = Note(
+                path=existing_note.path,
+                content=new_content,
+                metadata=existing_note.metadata
+            )
+            mock_api.update_note = AsyncMock(return_value=replaced_note)
+            
+            result = await update_note(
+                "test/note.md",
+                new_content,
+                ctx=ctx
+            )
+            
+            assert result["updated"] is True
+            assert result["merge_strategy"] == "replace"
+            mock_api.update_note.assert_called_with("test/note.md", new_content)
+    
+    @pytest.mark.asyncio
     async def test_error_propagation(self):
         """Test that errors are properly propagated."""
         ctx = MockContext()

@@ -204,10 +204,26 @@ Create a new note or update an existing one.
 #### `update_note`
 Update the content of an existing note.
 
+⚠️ **IMPORTANT**: By default, this tool REPLACES the entire note content. Always read the note first if you need to preserve existing content.
+
 **Parameters:**
 - `path`: Path to the note to update
-- `content`: New markdown content
+- `content`: New markdown content (REPLACES existing content unless using append)
 - `create_if_not_exists` (default: `false`): Create if doesn't exist
+- `merge_strategy` (default: `"replace"`): How to handle content
+  - `"replace"`: Overwrites entire note content (default)
+  - `"append"`: Adds new content to the end of existing content
+
+**Safe Update Pattern:**
+```python
+# ALWAYS read first to preserve content
+existing_note = await read_note("Daily/2024-01-15.md")
+updated_content = existing_note["content"] + "\n\n## New Section\nAdded content"
+await update_note("Daily/2024-01-15.md", updated_content)
+
+# Or use append mode to add to the end
+await update_note("Daily/2024-01-15.md", "## New Section\nAdded content", merge_strategy="append")
+```
 
 #### `delete_note`
 Delete a note from the vault.
@@ -457,6 +473,28 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 ### Tags not updating
 - Ensure notes have YAML frontmatter section
 - Frontmatter must include a `tags:` field (even if empty)
+
+## Best Practices for AI Assistants
+
+### Preventing Data Loss
+
+1. **Always read before updating**: The `update_note` tool REPLACES content by default
+2. **Use append mode for additions**: When adding to existing notes, use `merge_strategy="append"`
+3. **Check note existence**: Use `read_note` to verify a note exists before modifying
+4. **Be explicit about overwrites**: Only use `overwrite=true` when intentionally replacing content
+
+### Recommended Workflows
+
+**Safe note editing:**
+1. Read the existing note first
+2. Modify the content as needed
+3. Update with the complete new content
+
+**Adding to daily notes:**
+- Use `merge_strategy="append"` to add entries without losing existing content
+
+**Creating new notes:**
+- Use `create_note` with `overwrite=false` (default) to prevent accidental overwrites
 
 ## Security Considerations
 

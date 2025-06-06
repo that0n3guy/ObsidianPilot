@@ -1,6 +1,7 @@
 """Main entry point for Obsidian MCP server."""
 
 import os
+from pathlib import Path
 from typing import Annotated, Optional, List, Literal
 from pydantic import Field
 from fastmcp import FastMCP
@@ -49,7 +50,8 @@ async def read_note_tool(
     When to use:
     - Displaying note contents to the user
     - Analyzing or processing existing note data
-    - Verifying a note exists before updating
+    - ALWAYS before updating a note to preserve existing content
+    - Verifying a note exists before making changes
     
     When NOT to use:
     - Searching multiple notes (use search_notes instead)
@@ -86,20 +88,49 @@ async def create_note_tool(path: str, content: str, overwrite: bool = False, ctx
         raise McpError(f"Failed to create note: {str(e)}")
 
 @mcp.tool()
-async def update_note_tool(path: str, content: str, create_if_not_exists: bool = False, ctx=None):
+async def update_note_tool(
+    path: Annotated[str, Field(
+        description="Path to the note to update",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Daily/2024-01-15.md", "Projects/Project.md"]
+    )],
+    content: Annotated[str, Field(
+        description="New markdown content (REPLACES existing content unless using append)",
+        min_length=0,
+        max_length=1000000
+    )],
+    create_if_not_exists: Annotated[bool, Field(
+        description="Create the note if it doesn't exist",
+        default=False
+    )] = False,
+    merge_strategy: Annotated[Literal["replace", "append"], Field(
+        description="How to handle content: 'replace' overwrites, 'append' adds to end",
+        default="replace"
+    )] = "replace",
+    ctx=None
+):
     """
     Update the content of an existing note.
     
-    Args:
-        path: Path to the note to update
-        content: New markdown content for the note
-        create_if_not_exists: Create the note if it doesn't exist (default: false)
-        
+    ⚠️ IMPORTANT: By default, this REPLACES the entire note content.
+    Always read the note first if you need to preserve existing content.
+    
+    When to use:
+    - Updating a note with completely new content (replace)
+    - Adding content to the end of a note (append)
+    - Programmatically modifying notes
+    
+    When NOT to use:
+    - Making small edits (read first, then update with full content)
+    - Creating new notes (use create_note instead)
+    
     Returns:
-        Update status
+        Update status with path, metadata, and operation performed
     """
     try:
-        return await update_note(path, content, create_if_not_exists, ctx)
+        return await update_note(path, content, create_if_not_exists, merge_strategy, ctx)
     except (ValueError, FileNotFoundError) as e:
         raise McpError(str(e))
     except Exception as e:
@@ -421,7 +452,7 @@ def main():
     
     # Check for version command
     if len(sys.argv) > 1 and sys.argv[1] in ["--version", "-v"]:
-        print("obsidian-mcp version 1.0.0")
+        print("obsidian-mcp version 1.1.0")
         return
     
     # Run the server

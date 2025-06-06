@@ -84,6 +84,88 @@ class TestNoteManagement:
             assert result["created"] is False
     
     @pytest.mark.asyncio
+    async def test_update_note_append_strategy(self, mock_ctx, sample_note):
+        """Test update note with append merge strategy."""
+        with patch('src.tools.note_management.ObsidianAPI') as mock_api_class:
+            mock_api = mock_api_class.return_value
+            mock_api.get_note = AsyncMock(return_value=sample_note)
+            
+            # Create a new note with appended content
+            expected_content = sample_note.content.rstrip() + "\n\n## Additional Content"
+            updated_note = Note(
+                path=sample_note.path,
+                content=expected_content,
+                metadata=sample_note.metadata
+            )
+            mock_api.update_note = AsyncMock(return_value=updated_note)
+            
+            result = await update_note(
+                "test/sample.md", 
+                "## Additional Content", 
+                merge_strategy="append",
+                ctx=mock_ctx
+            )
+            
+            assert result["updated"] is True
+            assert result["created"] is False
+            assert result["merge_strategy"] == "append"
+            
+            # Verify the API was called with the appended content
+            mock_api.update_note.assert_called_once_with(
+                "test/sample.md", 
+                expected_content
+            )
+    
+    @pytest.mark.asyncio
+    async def test_update_note_replace_strategy(self, mock_ctx, sample_note):
+        """Test update note with explicit replace merge strategy."""
+        with patch('src.tools.note_management.ObsidianAPI') as mock_api_class:
+            mock_api = mock_api_class.return_value
+            mock_api.get_note = AsyncMock(return_value=sample_note)
+            
+            new_content = "# Completely New Content"
+            updated_note = Note(
+                path=sample_note.path,
+                content=new_content,
+                metadata=sample_note.metadata
+            )
+            mock_api.update_note = AsyncMock(return_value=updated_note)
+            
+            result = await update_note(
+                "test/sample.md", 
+                new_content,
+                merge_strategy="replace",
+                ctx=mock_ctx
+            )
+            
+            assert result["updated"] is True
+            assert result["created"] is False
+            assert result["merge_strategy"] == "replace"
+            
+            # Verify the API was called with the replaced content
+            mock_api.update_note.assert_called_once_with(
+                "test/sample.md", 
+                new_content
+            )
+    
+    @pytest.mark.asyncio
+    async def test_update_note_invalid_strategy(self, mock_ctx, sample_note):
+        """Test update note with invalid merge strategy."""
+        with patch('src.tools.note_management.ObsidianAPI') as mock_api_class:
+            mock_api = mock_api_class.return_value
+            mock_api.get_note = AsyncMock(return_value=sample_note)
+            
+            with pytest.raises(ValueError) as exc_info:
+                await update_note(
+                    "test/sample.md", 
+                    "# Content",
+                    merge_strategy="invalid",
+                    ctx=mock_ctx
+                )
+            
+            assert "Invalid merge_strategy" in str(exc_info.value)
+    
+    @pytest.mark.asyncio
     async def test_delete_note_success(self, mock_ctx):
         """Test successful note deletion."""
         with patch('src.tools.note_management.ObsidianAPI') as mock_api_class:

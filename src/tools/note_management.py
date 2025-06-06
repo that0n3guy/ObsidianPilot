@@ -129,6 +129,7 @@ async def update_note(
     path: str,
     content: str,
     create_if_not_exists: bool = False,
+    merge_strategy: str = "replace",
     ctx: Optional[Context] = None
 ) -> dict:
     """
@@ -137,10 +138,14 @@ async def update_note(
     Use this tool to modify the content of an existing note while preserving
     its metadata and location. Optionally create the note if it doesn't exist.
     
+    IMPORTANT: This tool REPLACES the entire note content by default. Always
+    read the note first with read_note_tool if you want to preserve existing content.
+    
     Args:
         path: Path to the note to update
-        content: New markdown content for the note
+        content: New markdown content for the note (REPLACES existing content)
         create_if_not_exists: Create the note if it doesn't exist (default: false)
+        merge_strategy: How to handle updates - "replace" (default) or "append"
         ctx: MCP context for progress reporting
         
     Returns:
@@ -149,7 +154,7 @@ async def update_note(
     Example:
         >>> await update_note(
         ...     "Projects/My Project.md",
-        ...     "# My Project\n\n## Updated Status\nProject is now complete!",
+        ...     "# My Project\\n\\n## Updated Status\\nProject is now complete!",
         ...     ctx=ctx
         ... )
         {
@@ -188,14 +193,25 @@ async def update_note(
         else:
             raise FileNotFoundError(ERROR_MESSAGES["note_not_found"].format(path=path))
     
+    # Handle merge strategies
+    if merge_strategy == "append":
+        # Append to existing content
+        final_content = existing_note.content.rstrip() + "\n\n" + content
+    elif merge_strategy == "replace":
+        # Replace entire content (default)
+        final_content = content
+    else:
+        raise ValueError(f"Invalid merge_strategy: {merge_strategy}. Must be 'replace' or 'append'")
+    
     # Update existing note
-    note = await api.update_note(path, content)
+    note = await api.update_note(path, final_content)
     
     return {
         "path": note.path,
         "updated": True,
         "created": False,
-        "metadata": note.metadata.model_dump(exclude_none=True)
+        "metadata": note.metadata.model_dump(exclude_none=True),
+        "merge_strategy": merge_strategy
     }
 
 
