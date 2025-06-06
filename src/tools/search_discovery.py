@@ -296,24 +296,35 @@ async def list_notes(
     notes = []
     folders = set()
     
-    def process_item(item: VaultItem, parent_path: str = ""):
-        """Recursively process vault items."""
-        # When getting a specific directory, paths are relative to that directory
-        full_path = f"{directory}/{item.path}" if directory else item.path
-        
-        if item.is_folder:
-            folders.add(full_path)
-            if recursive and item.children:
-                for child in item.children:
-                    process_item(child, item.path)
-        elif is_markdown_file(full_path):
-            notes.append({
-                "path": full_path,
-                "name": item.name
-            })
+    async def process_directory(dir_path: str = None):
+        """Process a directory and optionally recurse into subdirectories."""
+        try:
+            # Get items for this directory
+            items = await api.get_vault_structure(dir_path)
+            
+            for item in items:
+                # Construct full path
+                if dir_path:
+                    full_path = f"{dir_path}/{item.path}"
+                else:
+                    full_path = item.path
+                
+                if item.is_folder:
+                    folders.add(full_path)
+                    # If recursive, process this folder too
+                    if recursive:
+                        await process_directory(full_path)
+                elif is_markdown_file(full_path):
+                    notes.append({
+                        "path": full_path,
+                        "name": item.name
+                    })
+        except Exception:
+            # Silently skip directories we can't access
+            pass
     
-    for item in vault_items:
-        process_item(item)
+    # Start processing from the specified directory or root
+    await process_directory(directory)
     
     # Sort results
     notes.sort(key=lambda x: x["path"])

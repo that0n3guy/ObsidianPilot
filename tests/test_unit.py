@@ -202,19 +202,25 @@ class TestSearchDiscovery:
     @pytest.mark.asyncio
     async def test_list_notes(self, mock_ctx):
         """Test listing notes."""
-        vault_items = [
-            VaultItem(path="test", name="test", is_folder=True, children=[
-                VaultItem(path="test/note.md", name="note.md", is_folder=False)
-            ])
+        # For simplicity, test non-recursive listing of a specific directory
+        folder_items = [
+            VaultItem(path="note1.md", name="note1.md", is_folder=False, children=None),
+            VaultItem(path="subfolder", name="subfolder", is_folder=True, children=None),
+            VaultItem(path="note2.md", name="note2.md", is_folder=False, children=None)
         ]
         
         with patch('src.tools.search_discovery.ObsidianAPI') as mock_api_class:
             mock_api = mock_api_class.return_value
-            mock_api.get_vault_structure = AsyncMock(return_value=vault_items)
+            mock_api.get_vault_structure = AsyncMock(return_value=folder_items)
             
-            result = await list_notes(recursive=True, ctx=mock_ctx)
+            # Test non-recursive listing
+            result = await list_notes(directory="test", recursive=False, ctx=mock_ctx)
             
-            assert result["count"] >= 1
+            # Should only find the markdown files, not recurse into subfolder
+            assert result["count"] == 2
+            assert result["directory"] == "test"
+            assert result["notes"][0]["path"] == "test/note1.md"
+            assert result["notes"][1]["path"] == "test/note2.md"
 
 
 class TestOrganization:
