@@ -51,15 +51,15 @@ async def search_notes(
     
     try:
         results = await api.search(query)
-    except Exception as e:
-        # Search endpoint often has issues - return empty results
+    except ConnectionError as e:
+        # Only catch connection errors, let other errors through for debugging
         if ctx:
             ctx.info(f"Search endpoint unavailable: {str(e)}")
         return {
             "query": query,
             "count": 0,
             "results": [],
-            "error": "Search functionality is currently unavailable. The Obsidian REST API search endpoint may not be fully implemented."
+            "error": "Search functionality is currently unavailable. Please check if the Obsidian REST API is running and accessible."
         }
     
     # Format results

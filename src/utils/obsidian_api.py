@@ -191,23 +191,93 @@ class ObsidianAPI:
         Returns:
             List of search results
         """
-        # Use POST for search endpoint
-        # Note: This endpoint often hangs or is not implemented
+        # Try multiple search approaches
+        
+        # 1. Try JsonLogic search (as suggested by Claude)
         try:
-            # Use a shorter timeout for search
             async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
-                url = f"{self.base_url}{ENDPOINTS['search_simple']}"
+                url = f"{self.base_url}/search"
+                headers = self.headers.copy()
+                headers["Content-Type"] = "application/vnd.olrapi.jsonlogic+json"
+                
+                # Create a JsonLogic query that searches for the term in content
+                # Using glob pattern matching
+                json_logic_query = {
+                    "or": [
+                        # Search in content
+                        {"glob": [f"*{query}*", {"var": "content"}]},
+                        # Search in filename
+                        {"glob": [f"*{query}*", {"var": "path"}]}
+                    ]
+                }
+                
                 response = await client.post(
                     url,
-                    headers=self.headers,
-                    json={"query": query, "contextLength": 100}
+                    headers=headers,
+                    json=json_logic_query
                 )
                 response.raise_for_status()
-                return response.json()
-        except (httpx.TimeoutException, httpx.ConnectError):
-            raise ConnectionError("Search endpoint timed out or is not available")
-        except httpx.HTTPStatusError as e:
-            raise ConnectionError(f"Search failed with status {e.response.status_code}")
+                
+                # Response from JsonLogic search has a different structure
+                results = response.json()
+                
+                # Format results to match expected structure
+                formatted_results = []
+                
+                if isinstance(results, list):
+                    for result in results:
+                        # Handle different response formats
+                        if isinstance(result, str):
+                            # Simple string path
+                            formatted_results.append({
+                                "path": result,
+                                "filename": result,
+                                "matches": [],
+                                "score": 1.0
+                            })
+                        elif isinstance(result, dict):
+                            # Complex result with match info
+                            # Extract the actual filename from the result
+                            filename = None
+                            if "filename" in result and isinstance(result["filename"], dict):
+                                filename = result["filename"].get("filename")
+                            elif "path" in result and isinstance(result["path"], dict):
+                                filename = result["path"].get("filename")
+                            elif "filename" in result and isinstance(result["filename"], str):
+                                filename = result["filename"]
+                            elif "path" in result and isinstance(result["path"], str):
+                                filename = result["path"]
+                            
+                            if filename:
+                                formatted_results.append({
+                                    "path": filename,
+                                    "filename": filename,
+                                    "matches": result.get("matches", []),
+                                    "score": result.get("score", 1.0)
+                                })
+                
+                return formatted_results
+                
+        except Exception as e:
+            # Log the specific error for debugging
+            import sys
+            print(f"JsonLogic search failed: {e}", file=sys.stderr)
+            
+            # 2. Try the simple search endpoint as fallback
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+                    url = f"{self.base_url}{ENDPOINTS['search_simple']}"
+                    response = await client.post(
+                        url,
+                        headers=self.headers,
+                        json={"query": query, "contextLength": 100}
+                    )
+                    response.raise_for_status()
+                    return response.json()
+            except (httpx.TimeoutException, httpx.ConnectError):
+                raise ConnectionError("Search endpoints are not available or timed out")
+            except httpx.HTTPStatusError as e:
+                raise ConnectionError(f"Search failed with status {e.response.status_code}")
     
     def _parse_vault_items(self, items: List[str]) -> List[VaultItem]:
         """Parse vault items from API response."""
