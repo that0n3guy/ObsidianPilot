@@ -7,7 +7,7 @@ from ..models import Note
 from ..constants import ERROR_MESSAGES
 
 
-async def read_note(path: str, ctx: Context) -> dict:
+async def read_note(path: str, ctx: Optional[Context] = None) -> dict:
     """
     Read the content and metadata of a specific note.
     
@@ -41,7 +41,8 @@ async def read_note(path: str, ctx: Context) -> dict:
     # Sanitize path
     path = sanitize_path(path)
     
-    ctx.info(f"Reading note: {path}")
+    if ctx:
+        ctx.info(f"Reading note: {path}")
     
     api = ObsidianAPI()
     note = await api.get_note(path)
@@ -60,7 +61,7 @@ async def create_note(
     path: str, 
     content: str, 
     overwrite: bool = False,
-    ctx: Context = None
+    ctx: Optional[Context] = None
 ) -> dict:
     """
     Create a new note or update an existing one.
@@ -122,7 +123,7 @@ async def update_note(
     path: str,
     content: str,
     create_if_not_exists: bool = False,
-    ctx: Context = None
+    ctx: Optional[Context] = None
 ) -> dict:
     """
     Update the content of an existing note.
@@ -192,7 +193,7 @@ async def update_note(
     }
 
 
-async def delete_note(path: str, ctx: Context) -> dict:
+async def delete_note(path: str, ctx: Optional[Context] = None) -> dict:
     """
     Delete a note from the vault.
     
@@ -218,7 +219,8 @@ async def delete_note(path: str, ctx: Context) -> dict:
     # Sanitize path
     path = sanitize_path(path)
     
-    ctx.info(f"Deleting note: {path}")
+    if ctx:
+        ctx.info(f"Deleting note: {path}")
     
     api = ObsidianAPI()
     deleted = await api.delete_note(path)

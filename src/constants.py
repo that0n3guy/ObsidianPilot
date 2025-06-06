@@ -9,7 +9,7 @@ DEFAULT_LIST_RECURSIVE = True
 # API Endpoints
 ENDPOINTS = {
     "vault": "/vault/",
-    "vault_path": "/vault/{path}",
+    "vault_path": "/vault/{path}",  # No trailing slash for individual files
     "search": "/search/",
     "search_simple": "/search/simple/",
 }

@@ -30,7 +30,7 @@ mcp = FastMCP(
 
 # Register tools with proper error handling
 @mcp.tool()
-async def read_note_tool(path: str, ctx):
+async def read_note_tool(path: str, ctx=None):
     """
     Read the content and metadata of a specific note.
     
@@ -88,7 +88,7 @@ async def update_note_tool(path: str, content: str, create_if_not_exists: bool =
         raise McpError(f"Failed to update note: {str(e)}")
 
 @mcp.tool()
-async def delete_note_tool(path: str, ctx):
+async def delete_note_tool(path: str, ctx=None):
     """
     Delete a note from the vault.
     

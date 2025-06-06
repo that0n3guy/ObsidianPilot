@@ -14,16 +14,20 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class ObsidianAPI:
     """Client for interacting with Obsidian REST API."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         """
         Initialize the Obsidian API client.
         
         Args:
             api_key: API key for authentication. If not provided, reads from environment.
+            base_url: Base URL for the API. If not provided, uses default or environment.
         """
         self.api_key = api_key or os.getenv("OBSIDIAN_REST_API_KEY")
         if not self.api_key:
             raise ValueError(ERROR_MESSAGES["api_key_missing"])
+        
+        # Allow base URL override from environment
+        self.base_url = base_url or os.getenv("OBSIDIAN_API_URL", OBSIDIAN_BASE_URL)
         
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -52,7 +56,7 @@ class ObsidianAPI:
         Raises:
             httpx.HTTPError: On connection errors
         """
-        url = f"{OBSIDIAN_BASE_URL}{endpoint}"
+        url = f"{self.base_url}{endpoint}"
         
         async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
             try:
@@ -68,11 +72,19 @@ class ObsidianAPI:
             except httpx.ConnectError:
                 raise ConnectionError(ERROR_MESSAGES["connection_failed"])
     
-    async def get_vault_structure(self) -> List[VaultItem]:
+    async def get_vault_structure(self, path: Optional[str] = None) -> List[VaultItem]:
         """Get the vault structure."""
-        response = await self._request("GET", ENDPOINTS["vault"])
+        if path:
+            # For directories, we need the trailing slash
+            endpoint = f"/vault/{path}/"
+        else:
+            endpoint = ENDPOINTS["vault"]
+        
+        response = await self._request("GET", endpoint)
         data = response.json()
-        return self._parse_vault_items(data.get("files", []))
+        # API returns an object with "files" array when using HTTPS
+        items = data.get("files", []) if isinstance(data, dict) else data
+        return self._parse_vault_items(items)
     
     async def get_note(self, path: str) -> Optional[Note]:
         """
@@ -87,12 +99,28 @@ class ObsidianAPI:
         try:
             endpoint = ENDPOINTS["vault_path"].format(path=path)
             response = await self._request("GET", endpoint)
-            data = response.json()
+            
+            # Try to parse as JSON first, fall back to raw text
+            try:
+                data = response.json()
+                # If it's a dict with "content" key, extract it
+                if isinstance(data, dict) and "content" in data:
+                    content = data["content"]
+                    metadata = self._parse_metadata(data)
+                else:
+                    # Unexpected JSON format
+                    content = response.text
+                    metadata = self._parse_metadata({"content": content})
+            except:
+                # Not JSON, treat as raw markdown
+                content = response.text
+                # Extract metadata from frontmatter if present
+                metadata = self._parse_metadata({"content": content})
             
             return Note(
                 path=path,
-                content=data.get("content", ""),
-                metadata=self._parse_metadata(data)
+                content=content,
+                metadata=metadata
             )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:

@@ -123,16 +123,17 @@ async def list_notes(
             ctx.info("Listing all notes in vault")
     
     api = ObsidianAPI()
-    vault_items = await api.get_vault_structure()
     
-    # Filter to specified directory if provided
+    # Get vault structure for the specified directory or root
     if directory:
         directory = directory.strip("/")
-        filtered_items = []
-        for item in vault_items:
-            if item.path.startswith(directory + "/") or item.path == directory:
-                filtered_items.append(item)
-        vault_items = filtered_items
+        try:
+            vault_items = await api.get_vault_structure(directory)
+        except Exception:
+            # If directory doesn't exist or error, return empty
+            vault_items = []
+    else:
+        vault_items = await api.get_vault_structure()
     
     # Extract notes and folders
     notes = []
@@ -140,21 +141,19 @@ async def list_notes(
     
     def process_item(item: VaultItem, parent_path: str = ""):
         """Recursively process vault items."""
+        # When getting a specific directory, paths are relative to that directory
+        full_path = f"{directory}/{item.path}" if directory else item.path
+        
         if item.is_folder:
-            folders.add(item.path)
+            folders.add(full_path)
             if recursive and item.children:
                 for child in item.children:
                     process_item(child, item.path)
-        elif is_markdown_file(item.path):
-            # Only include if in the target directory (or subdirectory if recursive)
-            if not directory or (
-                item.path.startswith(directory + "/") or 
-                (not recursive and item.path.count("/") == directory.count("/") + 1)
-            ):
-                notes.append({
-                    "path": item.path,
-                    "name": item.name
-                })
+        elif is_markdown_file(full_path):
+            notes.append({
+                "path": full_path,
+                "name": item.name
+            })
     
     for item in vault_items:
         process_item(item)
