@@ -32,15 +32,11 @@ This MCP server follows best practices for AI-friendly design:
 
 ## Installation
 
-### Quick Install with uvx (Recommended)
+### Quick Install
 
-Install and run the Obsidian MCP server without cloning the repository:
+Run the Obsidian MCP server without cloning the repository:
 
 ```bash
-# Install with pipx (permanent installation)
-pipx install obsidian-mcp
-
-# Or run directly with uvx (temporary, isolated execution)
 uvx obsidian-mcp
 ```
 
@@ -491,10 +487,8 @@ twine upload --repository testpypi dist/*
 twine upload dist/*
 ```
 
-Users can then install with:
+Users can then run with:
 ```bash
-pipx install obsidian-mcp
-# or
 uvx obsidian-mcp
 ```
 
