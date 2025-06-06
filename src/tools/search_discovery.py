@@ -48,7 +48,19 @@ async def search_notes(
         ctx.info(f"Searching notes with query: {query}")
     
     api = ObsidianAPI()
-    results = await api.search(query)
+    
+    try:
+        results = await api.search(query)
+    except Exception as e:
+        # Search endpoint often has issues - return empty results
+        if ctx:
+            ctx.info(f"Search endpoint unavailable: {str(e)}")
+        return {
+            "query": query,
+            "count": 0,
+            "results": [],
+            "error": "Search functionality is currently unavailable. The Obsidian REST API search endpoint may not be fully implemented."
+        }
     
     # Format results
     formatted_results = []

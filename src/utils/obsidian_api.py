@@ -192,12 +192,22 @@ class ObsidianAPI:
             List of search results
         """
         # Use POST for search endpoint
-        response = await self._request(
-            "POST", 
-            ENDPOINTS["search_simple"],
-            json_data={"query": query, "contextLength": 100}
-        )
-        return response.json()
+        # Note: This endpoint often hangs or is not implemented
+        try:
+            # Use a shorter timeout for search
+            async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+                url = f"{self.base_url}{ENDPOINTS['search_simple']}"
+                response = await client.post(
+                    url,
+                    headers=self.headers,
+                    json={"query": query, "contextLength": 100}
+                )
+                response.raise_for_status()
+                return response.json()
+        except (httpx.TimeoutException, httpx.ConnectError):
+            raise ConnectionError("Search endpoint timed out or is not available")
+        except httpx.HTTPStatusError as e:
+            raise ConnectionError(f"Search failed with status {e.response.status_code}")
     
     def _parse_vault_items(self, items: List[str]) -> List[VaultItem]:
         """Parse vault items from API response."""
