@@ -32,7 +32,79 @@ This MCP server follows best practices for AI-friendly design:
 
 ## Installation
 
-### Quick Start (Development)
+### Quick Install with uvx (Recommended)
+
+Install and run the Obsidian MCP server without cloning the repository:
+
+```bash
+# Install with pipx (permanent installation)
+pipx install obsidian-mcp
+
+# Or run directly with uvx (temporary, isolated execution)
+uvx obsidian-mcp
+```
+
+#### First-time Setup
+
+1. **Set up Obsidian:**
+   - Install and enable the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin
+   - Copy the API key from plugin settings (Settings > Local REST API > API Key)
+
+2. **Run the setup wizard:**
+   ```bash
+   obsidian-mcp --setup
+   ```
+   
+   This interactive wizard will:
+   - Ask for your Obsidian API key
+   - Configure the connection URL
+   - Test the connection to Obsidian
+   - Generate the Claude Desktop configuration
+
+   Alternatively, configure manually:
+   ```bash
+   # Create a .env file in your working directory
+   echo "OBSIDIAN_REST_API_KEY=your-api-key-here" > .env
+   
+   # Or export directly
+   export OBSIDIAN_REST_API_KEY="your-api-key-here"
+   ```
+
+3. **Add to Claude Desktop:**
+   
+   Edit your Claude Desktop config:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "uvx",
+         "args": ["obsidian-mcp"],
+         "env": {
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+
+   For a permanent installation with pipx:
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "obsidian-mcp",
+         "env": {
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+
+### Development Installation
 
 1. **Clone the repository:**
    ```bash
@@ -408,6 +480,33 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 4. Include comprehensive docstrings
 5. Add tests in `tests/`
 6. Test with MCP Inspector before deploying
+
+## Publishing (for maintainers)
+
+To publish a new version to PyPI:
+
+```bash
+# Update version in pyproject.toml
+# Build the package
+python -m build
+
+# Test locally
+pip install dist/*.whl
+obsidian-mcp --version
+
+# Upload to TestPyPI first (optional)
+twine upload --repository testpypi dist/*
+
+# Upload to PyPI
+twine upload dist/*
+```
+
+Users can then install with:
+```bash
+pipx install obsidian-mcp
+# or
+uvx obsidian-mcp
+```
 
 ## Contributing
 
