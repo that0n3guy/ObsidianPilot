@@ -44,35 +44,17 @@ pipx install obsidian-mcp
 uvx obsidian-mcp
 ```
 
-#### First-time Setup
+#### Setup Instructions
 
-1. **Set up Obsidian:**
-   - Install and enable the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin
-   - Copy the API key from plugin settings (Settings > Local REST API > API Key)
+1. **Install and configure Obsidian:**
+   - Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin in Obsidian
+   - Enable the plugin in Settings > Community plugins
+   - Go to Settings > Local REST API
+   - Copy your API key (you'll need this for step 2)
 
-2. **Run the setup wizard:**
-   ```bash
-   obsidian-mcp --setup
-   ```
+2. **Add to Claude Desktop:**
    
-   This interactive wizard will:
-   - Ask for your Obsidian API key
-   - Configure the connection URL
-   - Test the connection to Obsidian
-   - Generate the Claude Desktop configuration
-
-   Alternatively, configure manually:
-   ```bash
-   # Create a .env file in your working directory
-   echo "OBSIDIAN_REST_API_KEY=your-api-key-here" > .env
-   
-   # Or export directly
-   export OBSIDIAN_REST_API_KEY="your-api-key-here"
-   ```
-
-3. **Add to Claude Desktop:**
-   
-   Edit your Claude Desktop config:
+   Edit your Claude Desktop config file:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
@@ -89,20 +71,12 @@ uvx obsidian-mcp
      }
    }
    ```
+   
+   Replace `your-api-key-here` with the API key you copied from Obsidian.
 
-   For a permanent installation with pipx:
-   ```json
-   {
-     "mcpServers": {
-       "obsidian": {
-         "command": "obsidian-mcp",
-         "env": {
-           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
-         }
-       }
-     }
-   }
-   ```
+3. **Restart Claude Desktop** to load the new configuration.
+
+That's it! The server will now be available in Claude with access to your Obsidian vault.
 
 ### Development Installation
 
@@ -138,6 +112,29 @@ uvx obsidian-mcp
    ```bash
    export OBSIDIAN_REST_API_KEY="your-api-key-here"
    export OBSIDIAN_API_URL="https://localhost:27124"  # if not using default
+   ```
+
+6. **Add to Claude Desktop (for development):**
+
+   Edit your Claude Desktop config file:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "/path/to/python",
+         "args": ["-m", "src.server"],
+         "cwd": "/path/to/obsidian-mcp",
+         "env": {
+           "PYTHONPATH": "/path/to/obsidian-mcp",
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here",
+           "OBSIDIAN_API_URL": "https://localhost:27124"
+         }
+       }
+     }
+   }
    ```
 
 ## Project Structure
@@ -371,52 +368,7 @@ python tests/test_data_validation.py   # Data structure validation
 
 ## Integration with Claude Desktop
 
-### Configuration
-
-1. **Add to Claude Desktop configuration:**
-
-   Edit your Claude Desktop config file:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-   ```json
-   {
-     "mcpServers": {
-       "obsidian": {
-         "command": "/path/to/python",
-         "args": ["-m", "src.server"],
-         "cwd": "/path/to/obsidian-mcp",
-         "env": {
-           "PYTHONPATH": "/path/to/obsidian-mcp",
-           "OBSIDIAN_REST_API_KEY": "your-api-key-here",
-           "OBSIDIAN_API_URL": "https://localhost:27124"
-         }
-       }
-     }
-   }
-   ```
-
-   For pyenv users:
-   ```json
-   {
-     "mcpServers": {
-       "obsidian": {
-         "command": "/Users/username/.pyenv/versions/obsidian-mcp/bin/python",
-         "args": ["-m", "src.server"],
-         "cwd": "/Users/username/path/to/obsidian-mcp",
-         "env": {
-           "PYTHONPATH": "/Users/username/path/to/obsidian-mcp",
-           "OBSIDIAN_REST_API_KEY": "your-api-key-here",
-           "OBSIDIAN_API_URL": "https://localhost:27124"
-         }
-       }
-     }
-   }
-   ```
-
-2. **Restart Claude Desktop** (Cmd/Ctrl + R)
-
-3. **Verify connection** - the Obsidian tools should appear in Claude's tool list
+For development installations, see the [Development Installation](#development-installation) section above.
 
 ## Enhanced Error Handling
 
