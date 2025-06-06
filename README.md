@@ -75,28 +75,15 @@ obsidian-mcp/
 
 ## Available Tools
 
-### `list_notes`
-List notes in your vault with optional recursive traversal.
+### Note Management
 
-**Parameters:**
-- `directory` (optional): Specific directory to list
-- `recursive` (default: `true`): List all notes recursively
-
-**Example:**
-```json
-{
-  "directory": "Daily",
-  "recursive": false
-}
-```
-
-### `read_note`
-Read the content of a specific note.
+#### `read_note`
+Read the content and metadata of a specific note.
 
 **Parameters:**
 - `path`: Path to the note (e.g., "Daily/2024-01-15.md")
 
-### `create_note`
+#### `create_note`
 Create a new note or update an existing one.
 
 **Parameters:**
@@ -104,12 +91,65 @@ Create a new note or update an existing one.
 - `content`: Markdown content of the note
 - `overwrite` (default: `false`): Whether to overwrite existing notes
 
-### `search_notes`
+#### `update_note`
+Update the content of an existing note.
+
+**Parameters:**
+- `path`: Path to the note to update
+- `content`: New markdown content
+- `create_if_not_exists` (default: `false`): Create if doesn't exist
+
+#### `delete_note`
+Delete a note from the vault.
+
+**Parameters:**
+- `path`: Path to the note to delete
+
+### Search and Discovery
+
+#### `search_notes`
 Search for notes containing specific text.
 
 **Parameters:**
-- `query`: Search query
+- `query`: Search query (supports Obsidian search syntax)
 - `context_length` (default: `100`): Number of characters to show around matches
+
+#### `list_notes`
+List notes in your vault with optional recursive traversal.
+
+**Parameters:**
+- `directory` (optional): Specific directory to list
+- `recursive` (default: `true`): List all notes recursively
+
+### Organization
+
+#### `move_note`
+Move a note to a new location.
+
+**Parameters:**
+- `source_path`: Current path of the note
+- `destination_path`: New path for the note
+- `update_links` (default: `true`): Update links in other notes
+
+#### `add_tags`
+Add tags to a note's frontmatter.
+
+**Parameters:**
+- `path`: Path to the note
+- `tags`: List of tags to add (without # prefix)
+
+#### `remove_tags`
+Remove tags from a note's frontmatter.
+
+**Parameters:**
+- `path`: Path to the note
+- `tags`: List of tags to remove
+
+#### `get_note_info`
+Get metadata about a note without retrieving its content.
+
+**Parameters:**
+- `path`: Path to the note
 
 ## Testing with MCP Inspector
 
@@ -191,9 +231,24 @@ source venv/bin/activate
 
 # Run the server
 python -m src.server
+```
 
-# Run tests
-python tests/test_server.py
+### Testing
+```bash
+# Run all tests (pytest optional)
+python tests/run_tests.py
+
+# Run specific test types
+python tests/run_tests.py unit         # Unit tests (requires pytest)
+python tests/run_tests.py integration  # Integration tests (requires pytest)  
+python tests/run_tests.py live         # Live tests with real Obsidian
+
+# Run live tests directly (no pytest needed)
+python tests/test_live.py
+
+# Test with MCP Inspector
+npx @modelcontextprotocol/inspector -e OBSIDIAN_REST_API_KEY=$OBSIDIAN_REST_API_KEY python -m src.server
+# See docs/MCP_INSPECTOR_EXAMPLES.md for test examples
 ```
 
 ### Adding new tools

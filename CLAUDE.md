@@ -8,11 +8,31 @@ This is an MCP (Model Context Protocol) server that enables AI assistants to int
 
 ## Key Architecture
 
-The server uses FastMCP framework and implements 4 main tools:
-- `read_note`: Read content of a specific note by path
-- `create_note`: Create/update notes with overwrite protection
-- `search_notes`: Search notes using Obsidian's search syntax
-- `list_notes`: List notes recursively or by directory
+The server uses FastMCP framework with a modular structure:
+
+### File Organization
+```
+src/
+├── server.py           # Main entry point, tool registration
+├── tools/              # Tool implementations
+│   ├── note_management.py    # CRUD operations (read, create, update, delete)
+│   ├── search_discovery.py   # Search and navigation tools
+│   └── organization.py       # Tags, moves, metadata (future)
+├── models/             # Pydantic models for validation
+│   └── obsidian.py    # Note, SearchResult, VaultItem models
+├── utils/              # Shared utilities
+│   ├── obsidian_api.py      # REST API client wrapper
+│   └── validators.py        # Path validation, sanitization
+└── constants.py       # API endpoints, defaults, error messages
+```
+
+### Core Tools
+- `read_note`: Read content and metadata of a specific note
+- `create_note`: Create new notes with overwrite protection
+- `update_note`: Modify existing notes with optional create
+- `delete_note`: Remove notes from vault
+- `search_notes`: Search using Obsidian's syntax with context
+- `list_notes`: Browse vault structure recursively or by directory
 
 All communication with Obsidian happens through async HTTP requests to `https://localhost:27124` using the Local REST API plugin.
 
@@ -44,7 +64,15 @@ npx @modelcontextprotocol/inspector -e OBSIDIAN_REST_API_KEY=$OBSIDIAN_REST_API_
 
 ## Code Structure
 
-- `src/server.py`: Main MCP server implementation with all tool handlers
-- Authentication handled via API key in request headers
-- Uses httpx for async HTTP operations
-- Error handling includes proper MCP error responses with details
+### Design Principles
+- **Single responsibility**: Each module has one clear purpose
+- **Type safety**: Pydantic models for all complex data structures
+- **Clear naming**: Verb-object pattern for tools (read_note, create_note)
+- **Progressive disclosure**: Simple interfaces with optional complexity
+- **Comprehensive error handling**: Specific, actionable error messages
+
+### Key Components
+- `ObsidianAPI`: Centralized REST API client with consistent error handling
+- Validators ensure path safety and prevent directory traversal
+- Models provide type-safe data structures for all Obsidian entities
+- Tools follow consistent patterns for parameters and responses

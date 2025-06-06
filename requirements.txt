@@ -1,3 +1,9 @@
 fastmcp
 httpx
 urllib3
+pydantic>=2.0
+
+# Development dependencies
+pytest>=7.0
+pytest-asyncio>=0.21
+pytest-mock>=3.10

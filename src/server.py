@@ -1,202 +1,222 @@
+"""Main entry point for Obsidian MCP server."""
+
 import os
-import httpx
 from fastmcp import FastMCP
-from typing import Optional, Dict, Any
-import urllib3
+from fastmcp.exceptions import McpError
 
-# Suppress SSL warnings for self-signed certificate
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-mcp = FastMCP("obsidian-mcp")
-
-OBSIDIAN_API_URL = "https://localhost:27124"
-OBSIDIAN_API_KEY = os.getenv("OBSIDIAN_REST_API_KEY")
-
-# Create reusable client with proper configuration
-client = httpx.AsyncClient(
-    verify=False,
-    headers={"Authorization": f"Bearer {OBSIDIAN_API_KEY}"},
-    timeout=30.0,
-    base_url=OBSIDIAN_API_URL
+# Import all tools
+from .tools import (
+    read_note,
+    create_note,
+    update_note,
+    delete_note,
+    search_notes,
+    list_notes,
+    move_note,
+    add_tags,
+    remove_tags,
+    get_note_info,
 )
 
+# Check for API key
+if not os.getenv("OBSIDIAN_REST_API_KEY"):
+    raise ValueError("OBSIDIAN_REST_API_KEY environment variable must be set")
+
+# Create FastMCP server instance
+mcp = FastMCP(
+    "obsidian-mcp",
+    description="MCP server for interacting with Obsidian vaults through the Local REST API"
+)
+
+# Register tools with proper error handling
 @mcp.tool()
-async def read_note(path: str) -> Dict[str, Any]:
-    """Read the content of a specific note by its path."""
-    try:
-        response = await client.get(f"/vault/{path}")
-        response.raise_for_status()
-
-        return {
-            "success": True,
-            "path": path,
-            "content": response.text
-        }
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            return {
-                "success": False,
-                "error": f"Note not found: {path}"
-            }
-        return {
-            "success": False,
-            "error": f"Failed to read note: {str(e)}"
-        }
-
-@mcp.tool()
-async def create_note(path: str, content: str, overwrite: bool = False) -> Dict[str, Any]:
-    """Create a new note or update an existing one."""
-    try:
-        # Check if file exists
-        existing_response = await client.get(f"/vault/{path}")
-        exists = existing_response.status_code == 200
-
-        if exists and not overwrite:
-            return {
-                "success": False,
-                "error": f"Note already exists: {path}. Set overwrite=True to replace."
-            }
-
-        # Create or update the note
-        response = await client.put(
-            f"/vault/{path}",
-            content=content,
-            headers={"Content-Type": "text/markdown"}
-        )
-        response.raise_for_status()
-
-        return {
-            "success": True,
-            "path": path,
-            "action": "updated" if exists else "created",
-            "message": f"Successfully {'updated' if exists else 'created'} note at {path}"
-        }
-    except httpx.HTTPStatusError as e:
-        return {
-            "success": False,
-            "error": f"Failed to create note: {str(e)}"
-        }
-
-@mcp.tool()
-async def search_notes(query: str, context_length: int = 100) -> Dict[str, Any]:
-    """Search for notes containing the specified query."""
-    try:
-        response = await client.post(
-            "/search/simple/",
-            params={
-                "query": query,
-                "contextLength": context_length
-            }
-        )
-        response.raise_for_status()
-
-        results = response.json()
-        return {
-            "success": True,
-            "query": query,
-            "count": len(results),
-            "results": results
-        }
-    except httpx.HTTPStatusError as e:
-        return {
-            "success": False,
-            "error": f"Search failed: {str(e)}"
-        }
-
-@mcp.tool()
-async def list_notes(directory: Optional[str] = None, recursive: bool = True) -> Dict[str, Any]:
+async def read_note_tool(path: str, ctx):
     """
-    List notes in the vault.
-
+    Read the content and metadata of a specific note.
+    
     Args:
-        directory: Specific directory to list (None for root)
-        recursive: If True, list all notes recursively. If False, only list the specified directory.
+        path: Path to the note relative to vault root (e.g., "Daily/2024-01-15.md")
+        
+    Returns:
+        Note content and metadata
     """
     try:
-        if recursive and directory is None:
-            # Get all markdown files in the entire vault
-            all_notes = []
-            errors = []
-            await _list_notes_recursive(client, "", all_notes, errors)
-
-            result = {
-                "success": True,
-                "recursive": True,
-                "count": len(all_notes),
-                "notes": sorted(all_notes)  # Sort for consistent output
-            }
-
-            if errors:
-                result["warnings"] = errors
-
-            return result
-        else:
-            # List only the specified directory
-            # Ensure proper formatting of the path
-            if directory:
-                # Remove leading/trailing slashes and add proper trailing slash
-                directory = directory.strip('/')
-                endpoint = f"/vault/{directory}/"
-            else:
-                endpoint = "/vault/"
-
-            response = await client.get(endpoint)
-            response.raise_for_status()
-
-            files = response.json().get("files", [])
-
-            # Separate files and folders
-            notes = [f for f in files if f.endswith('.md')]
-            folders = [f for f in files if f.endswith('/')]
-
-            return {
-                "success": True,
-                "directory": directory or "root",
-                "recursive": False,
-                "count": len(notes),
-                "notes": notes,
-                "folders": folders
-            }
-    except httpx.HTTPStatusError as e:
-        return {
-            "success": False,
-            "error": f"Failed to list notes: {str(e)}"
-        }
-
-async def _list_notes_recursive(client: httpx.AsyncClient, path: str, all_notes: list, errors: list):
-    """Helper function to recursively list all notes."""
-    # Ensure proper path formatting
-    if path:
-        path = path.strip('/')
-        endpoint = f"/vault/{path}/"
-    else:
-        endpoint = "/vault/"
-
-    try:
-        response = await client.get(endpoint)
-        response.raise_for_status()
-
-        files = response.json().get("files", [])
-
-        for file in files:
-            if file.endswith('.md'):
-                # Add the full path
-                full_path = f"{path}/{file}" if path else file
-                all_notes.append(full_path)
-            elif file.endswith('/'):
-                # It's a folder, recurse into it
-                folder_name = file.rstrip('/')
-                folder_path = f"{path}/{folder_name}" if path else folder_name
-                await _list_notes_recursive(client, folder_path, all_notes, errors)
-
-    except httpx.HTTPStatusError as e:
-        # Record error but continue with other directories
-        error_msg = f"Could not access {path or 'root'}: {e.response.status_code}"
-        errors.append(error_msg)
+        return await read_note(path, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
     except Exception as e:
-        # Catch any other errors
-        error_msg = f"Error accessing {path or 'root'}: {str(e)}"
-        errors.append(error_msg)
+        raise McpError(f"Failed to read note: {str(e)}")
+
+@mcp.tool()
+async def create_note_tool(path: str, content: str, overwrite: bool = False, ctx=None):
+    """
+    Create a new note or update an existing one.
+    
+    Args:
+        path: Path where the note should be created (e.g., "Ideas/New Idea.md")
+        content: Markdown content for the note
+        overwrite: Whether to overwrite if the note already exists (default: false)
+        
+    Returns:
+        Created note information
+    """
+    try:
+        return await create_note(path, content, overwrite, ctx)
+    except (ValueError, FileExistsError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to create note: {str(e)}")
+
+@mcp.tool()
+async def update_note_tool(path: str, content: str, create_if_not_exists: bool = False, ctx=None):
+    """
+    Update the content of an existing note.
+    
+    Args:
+        path: Path to the note to update
+        content: New markdown content for the note
+        create_if_not_exists: Create the note if it doesn't exist (default: false)
+        
+    Returns:
+        Update status
+    """
+    try:
+        return await update_note(path, content, create_if_not_exists, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to update note: {str(e)}")
+
+@mcp.tool()
+async def delete_note_tool(path: str, ctx):
+    """
+    Delete a note from the vault.
+    
+    Args:
+        path: Path to the note to delete
+        
+    Returns:
+        Deletion status
+    """
+    try:
+        return await delete_note(path, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to delete note: {str(e)}")
+
+@mcp.tool()
+async def search_notes_tool(query: str, context_length: int = 100, ctx=None):
+    """
+    Search for notes containing specific text or matching search criteria.
+    
+    Args:
+        query: Search query (supports Obsidian search syntax)
+        context_length: Number of characters to show around matches (default: 100)
+        
+    Returns:
+        Search results with matched notes and context
+    """
+    try:
+        return await search_notes(query, context_length, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Search failed: {str(e)}")
+
+@mcp.tool()
+async def list_notes_tool(directory: str = None, recursive: bool = True, ctx=None):
+    """
+    List notes in the vault or a specific directory.
+    
+    Args:
+        directory: Specific directory to list (optional, defaults to root)
+        recursive: Whether to list all subdirectories recursively (default: true)
+        
+    Returns:
+        Vault structure and note paths
+    """
+    try:
+        return await list_notes(directory, recursive, ctx)
+    except Exception as e:
+        raise McpError(f"Failed to list notes: {str(e)}")
+
+@mcp.tool()
+async def move_note_tool(source_path: str, destination_path: str, update_links: bool = True, ctx=None):
+    """
+    Move a note to a new location, optionally updating all links.
+    
+    Args:
+        source_path: Current path of the note
+        destination_path: New path for the note
+        update_links: Whether to update links in other notes (default: true)
+        
+    Returns:
+        Move status and updated links count
+    """
+    try:
+        return await move_note(source_path, destination_path, update_links, ctx)
+    except (ValueError, FileNotFoundError, FileExistsError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to move note: {str(e)}")
+
+@mcp.tool()
+async def add_tags_tool(path: str, tags: list[str], ctx=None):
+    """
+    Add tags to a note's frontmatter.
+    
+    Args:
+        path: Path to the note
+        tags: List of tags to add (without # prefix)
+        
+    Returns:
+        Updated tag list
+    """
+    try:
+        return await add_tags(path, tags, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to add tags: {str(e)}")
+
+@mcp.tool()
+async def remove_tags_tool(path: str, tags: list[str], ctx=None):
+    """
+    Remove tags from a note's frontmatter.
+    
+    Args:
+        path: Path to the note
+        tags: List of tags to remove (without # prefix)
+        
+    Returns:
+        Updated tag list
+    """
+    try:
+        return await remove_tags(path, tags, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to remove tags: {str(e)}")
+
+@mcp.tool()
+async def get_note_info_tool(path: str, ctx=None):
+    """
+    Get metadata and information about a note without retrieving its full content.
+    
+    Args:
+        path: Path to the note
+        
+    Returns:
+        Note metadata and statistics
+    """
+    try:
+        return await get_note_info(path, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to get note info: {str(e)}")
+
 
 if __name__ == "__main__":
     mcp.run()
