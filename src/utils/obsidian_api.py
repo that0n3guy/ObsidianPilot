@@ -3,6 +3,7 @@
 import os
 import httpx
 import urllib3
+from datetime import datetime
 from typing import Optional, Dict, Any, List, Union
 from ..constants import OBSIDIAN_BASE_URL, DEFAULT_TIMEOUT, ENDPOINTS, ERROR_MESSAGES
 from ..models import Note, NoteMetadata, VaultItem
@@ -13,6 +14,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class ObsidianAPI:
     """Client for interacting with Obsidian REST API."""
+    
+    # Class-level client for connection pooling
+    _client: Optional[httpx.AsyncClient] = None
     
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         """
@@ -33,6 +37,30 @@ class ObsidianAPI:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        
+    @classmethod
+    async def get_client(cls) -> httpx.AsyncClient:
+        """Get or create a shared HTTP client with connection pooling."""
+        if cls._client is None or cls._client.is_closed:
+            # Create client with connection pooling
+            # Reduced timeout for local API (was 30 seconds)
+            cls._client = httpx.AsyncClient(
+                verify=False,
+                timeout=httpx.Timeout(10.0),  # 10 second timeout for local API
+                limits=httpx.Limits(
+                    max_keepalive_connections=10,
+                    max_connections=20,
+                    keepalive_expiry=30.0
+                )
+            )
+        return cls._client
+    
+    @classmethod
+    async def close_client(cls):
+        """Close the shared HTTP client."""
+        if cls._client and not cls._client.is_closed:
+            await cls._client.aclose()
+            cls._client = None
         
     async def _request(
         self, 
@@ -103,24 +131,21 @@ class ObsidianAPI:
         """
         try:
             endpoint = ENDPOINTS["vault_path"].format(path=path)
-            response = await self._request("GET", endpoint)
+            # Request JSON format to get tags and metadata
+            headers = self.headers.copy()
+            headers["Accept"] = "application/vnd.olrapi.note+json"
             
-            # Try to parse as JSON first, fall back to raw text
-            try:
-                data = response.json()
-                # If it's a dict with "content" key, extract it
-                if isinstance(data, dict) and "content" in data:
-                    content = data["content"]
-                    metadata = self._parse_metadata(data)
-                else:
-                    # Unexpected JSON format
-                    content = response.text
-                    metadata = self._parse_metadata({"content": content})
-            except:
-                # Not JSON, treat as raw markdown
-                content = response.text
-                # Extract metadata from frontmatter if present
-                metadata = self._parse_metadata({"content": content})
+            async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
+                url = f"{self.base_url}{endpoint}"
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+            
+            # Parse JSON response which should include tags
+            data = response.json()
+            content = data.get("content", "")
+            
+            # Parse metadata with proper tag handling
+            metadata = self._parse_metadata(data)
             
             return Note(
                 path=path,
@@ -228,16 +253,26 @@ class ObsidianAPI:
                 headers = self.headers.copy()
                 headers["Content-Type"] = "application/vnd.olrapi.jsonlogic+json"
                 
-                # Create a JsonLogic query that searches for the term in content
-                # Using glob pattern matching
-                json_logic_query = {
-                    "or": [
-                        # Search in content
-                        {"glob": [f"*{query}*", {"var": "content"}]},
-                        # Search in filename
-                        {"glob": [f"*{query}*", {"var": "path"}]}
-                    ]
-                }
+                # Check if this is a tag search
+                if query.startswith("tag:"):
+                    # Extract tag name (remove tag: prefix and optional # prefix)
+                    tag_name = query[4:].lstrip("#")
+                    
+                    # Create JsonLogic query to search in tags array
+                    # Tags in the search index don't include the # prefix
+                    json_logic_query = {
+                        "in": [tag_name, {"var": "tags"}]
+                    }
+                else:
+                    # Regular content/path search
+                    json_logic_query = {
+                        "or": [
+                            # Search in content
+                            {"glob": [f"*{query}*", {"var": "content"}]},
+                            # Search in filename
+                            {"glob": [f"*{query}*", {"var": "path"}]}
+                        ]
+                    }
                 
                 response = await client.post(
                     url,
@@ -394,7 +429,31 @@ class ObsidianAPI:
     
     def _parse_metadata(self, data: Dict[str, Any]) -> NoteMetadata:
         """Parse metadata from API response."""
+        # Get tags from the API response (includes both frontmatter and inline tags)
+        tags = data.get("tags", [])
+        
+        # Clean tags - remove # prefix if present
+        cleaned_tags = [tag.lstrip("#") for tag in tags]
+        
+        # Get frontmatter data
+        frontmatter = data.get("frontmatter", {})
+        
+        # Get stat data for timestamps
+        stat = data.get("stat", {})
+        created = None
+        modified = None
+        
+        if stat:
+            # Convert milliseconds to seconds for datetime
+            if "ctime" in stat:
+                created = datetime.fromtimestamp(stat["ctime"] / 1000)
+            if "mtime" in stat:
+                modified = datetime.fromtimestamp(stat["mtime"] / 1000)
+        
         return NoteMetadata(
-            tags=data.get("tags", []),
-            frontmatter=data.get("frontmatter", {})
+            tags=cleaned_tags,
+            frontmatter=frontmatter,
+            created=created,
+            modified=modified,
+            aliases=frontmatter.get("aliases", [])
         )

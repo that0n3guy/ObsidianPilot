@@ -339,3 +339,103 @@ async def list_notes(
         "count": len(notes),
         "notes": notes
     }
+
+
+async def list_folders(
+    directory: Optional[str] = None,
+    recursive: bool = True,
+    ctx=None
+) -> dict:
+    """
+    List folders in the vault or a specific directory.
+    
+    Use this tool to explore the vault's folder structure. This is helpful for
+    verifying folder names before creating notes, understanding the organizational
+    hierarchy, or checking if a specific folder exists.
+    
+    Args:
+        directory: Specific directory to list folders from (optional, defaults to root)
+        recursive: Whether to include all nested subfolders (default: true)
+        ctx: MCP context for progress reporting
+        
+    Returns:
+        Dictionary containing folder structure with paths and folder counts
+        
+    Example:
+        >>> await list_folders("Projects", recursive=True, ctx=ctx)
+        {
+            "directory": "Projects",
+            "recursive": true,
+            "count": 5,
+            "folders": [
+                {"path": "Projects/Active", "name": "Active"},
+                {"path": "Projects/Archive", "name": "Archive"},
+                {"path": "Projects/Ideas", "name": "Ideas"}
+            ]
+        }
+    """
+    # Validate directory parameter
+    is_valid, error = validate_directory_path(directory)
+    if not is_valid:
+        raise ValueError(error)
+    
+    if ctx:
+        if directory:
+            ctx.info(f"Listing folders in: {directory}")
+        else:
+            ctx.info("Listing all folders in vault")
+    
+    api = ObsidianAPI()
+    
+    # Dictionary to store folders with their metadata
+    folders_dict = {}
+    
+    async def process_directory(dir_path: str = None, depth: int = 0):
+        """Process a directory and optionally recurse into subdirectories."""
+        try:
+            # Get items for this directory
+            items = await api.get_vault_structure(dir_path)
+            
+            for item in items:
+                if item.is_folder:
+                    # Construct full path
+                    if dir_path:
+                        full_path = f"{dir_path}/{item.path}"
+                    else:
+                        full_path = item.path
+                    
+                    # Store folder information
+                    folders_dict[full_path] = {
+                        "path": full_path,
+                        "name": item.name,
+                        "depth": depth
+                    }
+                    
+                    # If recursive, process this folder too
+                    if recursive:
+                        await process_directory(full_path, depth + 1)
+        except Exception:
+            # Silently skip directories we can't access
+            pass
+    
+    # Start processing from the specified directory or root
+    start_depth = 0
+    if directory:
+        # When starting from a subdirectory, depth 0 is that directory
+        await process_directory(directory, start_depth)
+    else:
+        await process_directory(None, start_depth)
+    
+    # Convert to sorted list
+    folders = sorted(folders_dict.values(), key=lambda x: x["path"])
+    
+    # Remove depth from output (was only used for internal tracking)
+    for folder in folders:
+        folder.pop("depth", None)
+    
+    return {
+        "directory": directory or "/",
+        "recursive": recursive,
+        "count": len(folders),
+        "folders": folders
+    }

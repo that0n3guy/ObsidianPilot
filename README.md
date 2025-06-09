@@ -6,11 +6,13 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
 - 📖 **Read & write notes** - Full access to your Obsidian vault with automatic overwrite protection
 - 🔍 **Smart search** - Find notes by content, tags, or modification date
-- 📁 **Browse vault** - List and navigate your notes by directory
-- 🏷️ **Tag management** - Add, remove, and organize tags in frontmatter
+- 📁 **Browse vault** - List and navigate your notes and folders by directory
+- 🏷️ **Tag management** - Add, remove, and organize tags (supports both frontmatter and inline tags)
 - 📊 **Note insights** - Get statistics like word count and link analysis
 - 🎯 **AI-optimized** - Clear error messages and smart defaults for better AI interactions
 - 🔒 **Secure** - API key authentication with local-only connections
+- ⚡ **Performance optimized** - Concurrent operations and batching for large vaults
+- 🚀 **Bulk operations** - Create folder hierarchies and move entire folders with all their contents
 
 ## Prerequisites
 
@@ -100,6 +102,8 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
    </details>
 
    Replace `your-api-key-here` with the API key you copied from Obsidian.
+   
+   > **Using HTTP or custom port?** Add `"OBSIDIAN_API_URL": "http://127.0.0.1:27123"` to the env section. See [Advanced Configuration](#advanced-configuration) for details.
 
 3. **Restart your AI tool** to load the new configuration.
 
@@ -149,7 +153,7 @@ Here are some example prompts to get started:
 5. **Configure environment variables:**
    ```bash
    export OBSIDIAN_REST_API_KEY="your-api-key-here"
-   export OBSIDIAN_API_URL="https://localhost:27124"  # if not using default
+   # export OBSIDIAN_API_URL="http://127.0.0.1:27123"  # Optional: only if not using default
    ```
 
 6. **Add to Claude Desktop (for development):**
@@ -233,8 +237,13 @@ Create a new note or update an existing one.
 
 **Parameters:**
 - `path`: Path where the note should be created
-- `content`: Markdown content of the note
+- `content`: Markdown content of the note (consider adding tags for organization)
 - `overwrite` (default: `false`): Whether to overwrite existing notes
+
+**Best Practices:**
+- Add relevant tags when creating notes to maintain organization
+- Use `list_tags` to see existing tags and maintain consistency
+- Tags can be added as inline hashtags (`#tag`) or in frontmatter
 
 #### `update_note`
 Update the content of an existing note.
@@ -250,15 +259,10 @@ Update the content of an existing note.
   - `"append"`: Adds new content to the end of existing content
 
 **Safe Update Pattern:**
-```python
-# ALWAYS read first to preserve content
-existing_note = await read_note("Daily/2024-01-15.md")
-updated_content = existing_note["content"] + "\n\n## New Section\nAdded content"
-await update_note("Daily/2024-01-15.md", updated_content)
-
-# Or use append mode to add to the end
-await update_note("Daily/2024-01-15.md", "## New Section\nAdded content", merge_strategy="append")
-```
+1. ALWAYS read first to preserve content
+2. Modify the content as needed
+3. Update with the complete new content
+4. Or use append mode to add content to the end
 
 #### `delete_note`
 Delete a note from the vault.
@@ -269,13 +273,17 @@ Delete a note from the vault.
 ### Search and Discovery
 
 #### `search_notes`
-Search for notes containing specific text.
+Search for notes containing specific text or tags.
 
 **Parameters:**
 - `query`: Search query (supports Obsidian search syntax)
 - `context_length` (default: `100`): Number of characters to show around matches
 
-**Note:** Search functionality may have connectivity issues with some REST API configurations.
+**Search Syntax:**
+- Text search: `"machine learning"`
+- Tag search: `tag:project` or `tag:#project`
+- Path search: `path:Daily/`
+- Combined: `tag:urgent TODO`
 
 #### `search_by_date`
 Search for notes by creation or modification date.
@@ -301,6 +309,7 @@ Search for notes by creation or modification date.
 ```
 
 **Example usage:**
+- "Show me all notes modified today" → `search_by_date("modified", 0, "within")`
 - "Show me all notes modified this week" → `search_by_date("modified", 7, "within")`
 - "Find notes created in the last 30 days" → `search_by_date("created", 30, "within")`
 - "What notes were modified exactly 2 days ago?" → `search_by_date("modified", 2, "exactly")`
@@ -325,7 +334,47 @@ List notes in your vault with optional recursive traversal.
 }
 ```
 
+#### `list_folders`
+List folders in your vault with optional recursive traversal.
+
+**Parameters:**
+- `directory` (optional): Specific directory to list from
+- `recursive` (default: `true`): Include all nested subfolders
+
+**Returns:**
+```json
+{
+  "directory": "Projects",
+  "recursive": true,
+  "count": 12,
+  "folders": [
+    {"path": "Projects/Active", "name": "Active"},
+    {"path": "Projects/Archive", "name": "Archive"},
+    {"path": "Projects/Ideas", "name": "Ideas"}
+  ]
+}
+```
+
 ### Organization
+
+#### `create_folder`
+Create a new folder in the vault, including all parent folders in the path.
+
+**Parameters:**
+- `folder_path`: Path of the folder to create (e.g., "Apple/Studies/J71P")
+- `create_placeholder` (default: `true`): Whether to create a placeholder file
+
+**Returns:**
+```json
+{
+  "folder": "Apple/Studies/J71P",
+  "created": true,
+  "placeholder_file": "Apple/Studies/J71P/.gitkeep",
+  "folders_created": ["Apple", "Apple/Studies", "Apple/Studies/J71P"]
+}
+```
+
+**Note:** This tool will create all necessary parent folders. For example, if "Apple" exists but "Studies" doesn't, it will create both "Studies" and "J71P".
 
 #### `move_note`
 Move a note to a new location.
@@ -335,12 +384,47 @@ Move a note to a new location.
 - `destination_path`: New path for the note
 - `update_links` (default: `true`): Update links in other notes (future enhancement)
 
+#### `move_folder`
+Move an entire folder and all its contents to a new location.
+
+**Parameters:**
+- `source_folder`: Current folder path (e.g., "Projects/Old")
+- `destination_folder`: New folder path (e.g., "Archive/Projects/Old")
+- `update_links` (default: `true`): Update links in other notes (future enhancement)
+
+**Returns:**
+```json
+{
+  "source": "Projects/Completed",
+  "destination": "Archive/2024/Projects",
+  "moved": true,
+  "notes_moved": 15,
+  "folders_moved": 3,
+  "links_updated": 0
+}
+```
+
 #### `add_tags`
 Add tags to a note's frontmatter.
 
 **Parameters:**
 - `path`: Path to the note
 - `tags`: List of tags to add (without # prefix)
+
+#### `update_tags`
+Update tags on a note - either replace all tags or merge with existing.
+
+**Parameters:**
+- `path`: Path to the note
+- `tags`: New tags to set (without # prefix)
+- `merge` (default: `false`): If true, adds to existing tags. If false, replaces all tags
+
+**Perfect for AI workflows:**
+```
+User: "Tell me what this note is about and add appropriate tags"
+AI: [reads note] "This note is about machine learning research..."
+AI: [uses update_tags to set tags: ["ai", "research", "neural-networks"]]
+```
 
 #### `remove_tags`
 Remove tags from a note's frontmatter.
@@ -372,6 +456,30 @@ Get metadata and statistics about a note without retrieving its full content.
   }
 }
 ```
+
+#### `list_tags`
+List all unique tags used across your vault with usage statistics.
+
+**Parameters:**
+- `include_counts` (default: `true`): Include usage count for each tag
+- `sort_by` (default: `"name"`): Sort by "name" or "count"
+
+**Returns:**
+```json
+{
+  "total_tags": 25,
+  "tags": [
+    {"name": "project", "count": 42},
+    {"name": "meeting", "count": 38},
+    {"name": "idea", "count": 15}
+  ]
+}
+```
+
+**Performance Notes:**
+- Fast for small vaults (<1000 notes)
+- May take several seconds for large vaults
+- Uses concurrent batching for optimization
 
 ## Testing
 
@@ -446,6 +554,12 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 - Confirm the API key is correct
 - The enhanced error will show the exact URL and port being used
 
+### Tags not showing up
+- Ensure tags are properly formatted (with or without # prefix)
+- Check that the Local REST API plugin is up to date
+- Tags in frontmatter should be in YAML array format: `tags: [tag1, tag2]`
+- Inline tags should use the # prefix: `#project #urgent`
+
 ### "Certificate verify failed" error
 - This is expected with the Local REST API's self-signed certificate
 - The server handles this automatically
@@ -461,8 +575,9 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 - Check if notes are in subdirectories
 
 ### Tags not updating
-- Ensure notes have YAML frontmatter section
+- Ensure notes have YAML frontmatter section for frontmatter tags
 - Frontmatter must include a `tags:` field (even if empty)
+- The server now properly reads both frontmatter tags and inline hashtags
 
 ## Best Practices for AI Assistants
 
@@ -485,6 +600,13 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 
 **Creating new notes:**
 - Use `create_note` with `overwrite=false` (default) to prevent accidental overwrites
+- Add relevant tags to maintain organization
+- Use `list_tags` to see existing tags and avoid creating duplicates
+
+**Organizing with tags:**
+- Check existing tags with `list_tags` before creating new ones
+- Maintain consistent naming (e.g., use "project" not "projects")
+- Use tags to enable powerful search and filtering
 
 ## Security Considerations
 
@@ -509,6 +631,26 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 5. Add tests in `tests/`
 6. Test with MCP Inspector before deploying
 
+## Changelog
+
+### v1.1.3 (2025-01-09)
+- 🐛 Fixed search_by_date to properly find notes modified today (days_ago=0)
+- ✨ Added list_folders tool for exploring vault folder structure
+- ✨ Added create_folder tool that creates full folder hierarchies
+- ✨ Added move_folder tool for bulk folder operations
+- ✨ Added update_tags tool for AI-driven tag management
+- 🐛 Fixed tag reading to properly handle both frontmatter and inline hashtags
+- ✨ Added list_tags tool to discover existing tags with usage statistics
+- ⚡ Optimized performance with concurrent batching for large vaults
+- 📝 Improved documentation and error messages following MCP best practices
+- 🎯 Enhanced create_note to encourage tag usage for better organization
+
+### v1.1.2 (2025-01-09)
+- Fixed PyPI package documentation
+
+### v1.1.1 (2025-01-06)
+- Initial PyPI release
+
 ## Publishing (for maintainers)
 
 To publish a new version to PyPI:
@@ -528,8 +670,8 @@ twine check dist/*
 twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
 # 6. Create and push git tag
-git tag -a v1.1.0 -m "Release version 1.1.0"
-git push origin v1.1.0
+git tag -a v1.1.3 -m "Release version 1.1.3"
+git push origin v1.1.3
 ```
 
 Users can then install and run with:
@@ -544,6 +686,33 @@ obsidian-mcp
 # Or with pip
 pip install obsidian-mcp
 obsidian-mcp
+```
+
+## Configuration
+
+### Advanced Configuration
+
+If you're using a non-standard setup, you can customize the server behavior with these environment variables:
+
+- `OBSIDIAN_API_URL` - Override the default API endpoint (default: `https://localhost:27124`)
+  - Use this if you're running the HTTP endpoint instead of HTTPS (e.g., `http://127.0.0.1:27123`)
+  - Or if you've changed the port number in the Local REST API plugin settings
+  - The HTTPS endpoint is used by default for security
+
+Example for non-standard configurations:
+```json
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "uvx",
+      "args": ["obsidian-mcp"],
+      "env": {
+        "OBSIDIAN_REST_API_KEY": "your-api-key-here",
+        "OBSIDIAN_API_URL": "http://127.0.0.1:27123"
+      }
+    }
+  }
+}
 ```
 
 ## Contributing

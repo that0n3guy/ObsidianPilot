@@ -15,10 +15,15 @@ from .tools import (
     search_notes,
     search_by_date,
     list_notes,
+    list_folders,
     move_note,
+    create_folder,
+    move_folder,
     add_tags,
+    update_tags,
     remove_tags,
     get_note_info,
+    list_tags,
 )
 
 # Check for API key
@@ -67,17 +72,43 @@ async def read_note_tool(
         raise McpError(f"Failed to read note: {str(e)}")
 
 @mcp.tool()
-async def create_note_tool(path: str, content: str, overwrite: bool = False, ctx=None):
+async def create_note_tool(
+    path: Annotated[str, Field(
+        description="Path where the note should be created relative to vault root",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Ideas/New Idea.md", "Daily/2024-01-15.md", "Projects/Project Plan.md"]
+    )],
+    content: Annotated[str, Field(
+        description="Markdown content for the note. Consider adding tags (use list_tags to see existing ones)",
+        min_length=0,
+        max_length=1000000,
+        examples=[
+            "# Meeting Notes\n#meeting #project-alpha\n\nDiscussed timeline and deliverables...",
+            "---\ntags: [daily, planning]\n---\n\n# Daily Note\n\nToday's tasks..."
+        ]
+    )],
+    overwrite: Annotated[bool, Field(
+        description="Whether to overwrite if the note already exists",
+        default=False
+    )] = False,
+    ctx=None
+):
     """
-    Create a new note or update an existing one.
+    Create a new note or overwrite an existing one.
     
-    Args:
-        path: Path where the note should be created (e.g., "Ideas/New Idea.md")
-        content: Markdown content for the note
-        overwrite: Whether to overwrite if the note already exists (default: false)
+    When to use:
+    - Creating new notes with specific content
+    - Setting up templates or structured notes
+    - Programmatically generating documentation
+    
+    When NOT to use:
+    - Updating existing notes (use update_note unless you want to replace entirely)
+    - Appending content (use update_note with merge_strategy="append")
         
     Returns:
-        Created note information
+        Created note information with path and metadata
     """
     try:
         return await create_note(path, content, overwrite, ctx)
@@ -256,6 +287,42 @@ async def list_notes_tool(directory: str = None, recursive: bool = True, ctx=Non
         raise McpError(f"Failed to list notes: {str(e)}")
 
 @mcp.tool()
+async def list_folders_tool(
+    directory: Annotated[Optional[str], Field(
+        description="Specific directory to list folders from (optional, defaults to root)",
+        default=None,
+        examples=[None, "Projects", "Daily", "Archive/2024"]
+    )] = None,
+    recursive: Annotated[bool, Field(
+        description="Whether to include all nested subfolders",
+        default=True
+    )] = True,
+    ctx=None
+):
+    """
+    List folders in the vault or a specific directory.
+    
+    When to use:
+    - Exploring vault organization structure
+    - Verifying folder names before creating notes
+    - Checking if a specific folder exists
+    - Understanding the hierarchy of the vault
+    
+    When NOT to use:
+    - Listing notes (use list_notes instead)
+    - Searching for content (use search_notes)
+    
+    Returns:
+        Folder structure with paths and names
+    """
+    try:
+        return await list_folders(directory, recursive, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to list folders: {str(e)}")
+
+@mcp.tool()
 async def move_note_tool(source_path: str, destination_path: str, update_links: bool = True, ctx=None):
     """
     Move a note to a new location, optionally updating all links.
@@ -274,6 +341,90 @@ async def move_note_tool(source_path: str, destination_path: str, update_links: 
         raise McpError(str(e))
     except Exception as e:
         raise McpError(f"Failed to move note: {str(e)}")
+
+@mcp.tool()
+async def create_folder_tool(
+    folder_path: Annotated[str, Field(
+        description="Path of the folder to create",
+        min_length=1,
+        max_length=255,
+        examples=["Projects/2025", "Archive/Q1", "Daily/January"]
+    )],
+    create_placeholder: Annotated[bool, Field(
+        description="Whether to create a placeholder file (.gitkeep or README.md)",
+        default=True
+    )] = True,
+    ctx=None
+):
+    """
+    Create a new folder in the vault, including all parent folders in the path.
+    
+    When to use:
+    - Setting up project structure in advance
+    - Creating deep folder hierarchies (e.g., "Apple/Studies/J71P")
+    - Creating archive folders before moving notes
+    - Establishing organizational hierarchy
+    - Preparing folders for future content
+    
+    When NOT to use:
+    - If you're about to create a note in that path (folders are created automatically)
+    - For temporary organization (just create notes directly)
+    
+    Note: Will create all necessary parent folders. For example, "Apple/Studies/J71P"
+    will create Apple, Apple/Studies, and Apple/Studies/J71P if they don't exist.
+    
+    Returns:
+        Creation status with list of folders created and placeholder file path
+    """
+    try:
+        return await create_folder(folder_path, create_placeholder, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to create folder: {str(e)}")
+
+@mcp.tool()
+async def move_folder_tool(
+    source_folder: Annotated[str, Field(
+        description="Current folder path to move",
+        min_length=1,
+        max_length=255,
+        examples=["Projects/Old", "Archive/2023", "Inbox/Unsorted"]
+    )],
+    destination_folder: Annotated[str, Field(
+        description="New location for the folder",
+        min_length=1,
+        max_length=255,
+        examples=["Archive/Projects/Old", "Completed/2023", "Projects/Sorted"]
+    )],
+    update_links: Annotated[bool, Field(
+        description="Whether to update links in other notes (future enhancement)",
+        default=True
+    )] = True,
+    ctx=None
+):
+    """
+    Move an entire folder and all its contents to a new location.
+    
+    When to use:
+    - Reorganizing vault structure
+    - Archiving completed projects
+    - Consolidating related notes
+    - Seasonal organization (e.g., moving to year-based archives)
+    
+    When NOT to use:
+    - Moving individual notes (use move_note instead)
+    - Moving to a subfolder of the source (creates circular reference)
+    
+    Returns:
+        Move status with count of notes and folders moved
+    """
+    try:
+        return await move_folder(source_folder, destination_folder, update_links, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to move folder: {str(e)}")
 
 @mcp.tool()
 async def add_tags_tool(
@@ -314,6 +465,49 @@ async def add_tags_tool(
         raise McpError(f"Failed to add tags: {str(e)}")
 
 @mcp.tool()
+async def update_tags_tool(
+    path: Annotated[str, Field(
+        description="Path to the note",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255
+    )],
+    tags: Annotated[List[str], Field(
+        description="New tags to set (without # prefix)",
+        min_items=0,
+        max_items=50,
+        examples=[["meeting", "important", "q1-2025"], ["ai", "research", "neural-networks"]]
+    )],
+    merge: Annotated[bool, Field(
+        description="If True, adds to existing tags. If False, replaces all tags",
+        default=False
+    )] = False,
+    ctx=None
+):
+    """
+    Update tags on a note - either replace all tags or merge with existing.
+    
+    When to use:
+    - After analyzing a note's content to suggest relevant tags
+    - Reorganizing tags across your vault
+    - Setting consistent tags based on note types or projects
+    - AI-driven tag suggestions ("What is this note about? Add appropriate tags")
+    
+    When NOT to use:
+    - Just adding a few tags (use add_tags)
+    - Just removing specific tags (use remove_tags)
+    
+    Returns:
+        Previous tags, new tags, and operation performed
+    """
+    try:
+        return await update_tags(path, tags, merge, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to update tags: {str(e)}")
+
+@mcp.tool()
 async def remove_tags_tool(path: str, tags: list[str], ctx=None):
     """
     Remove tags from a note's frontmatter.
@@ -349,6 +543,47 @@ async def get_note_info_tool(path: str, ctx=None):
         raise McpError(str(e))
     except Exception as e:
         raise McpError(f"Failed to get note info: {str(e)}")
+
+@mcp.tool()
+async def list_tags_tool(
+    include_counts: Annotated[bool, Field(
+        description="Whether to include usage count for each tag",
+        default=True
+    )] = True,
+    sort_by: Annotated[Literal["name", "count"], Field(
+        description="How to sort results - by name (alphabetical) or count (usage)",
+        default="name"
+    )] = "name",
+    ctx=None
+):
+    """
+    List all unique tags used across the vault with usage statistics.
+    
+    When to use:
+    - Before adding tags to maintain consistency
+    - Getting an overview of your tagging taxonomy
+    - Finding underused or overused tags
+    - Discovering tag variations (e.g., 'project' vs 'projects')
+    
+    When NOT to use:
+    - Getting tags for a specific note (use get_note_info)
+    - Searching notes by tag (use search_notes with tag: prefix)
+    
+    Performance note:
+    - For vaults with <1000 notes: Fast (1-3 seconds)
+    - For vaults with 1000-5000 notes: Moderate (3-10 seconds)
+    - For vaults with >5000 notes: May be slow (10+ seconds)
+    - Uses batched concurrent requests to optimize performance
+    
+    Returns:
+        All unique tags with optional usage counts
+    """
+    try:
+        return await list_tags(include_counts, sort_by, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to list tags: {str(e)}")
 
 
 

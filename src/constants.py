@@ -2,7 +2,7 @@
 
 # Obsidian REST API configuration
 OBSIDIAN_BASE_URL = "https://localhost:27124"
-DEFAULT_TIMEOUT = 30  # seconds
+DEFAULT_TIMEOUT = 10  # seconds - reduced for local API
 DEFAULT_SEARCH_CONTEXT_LENGTH = 100
 DEFAULT_LIST_RECURSIVE = True
 
@@ -22,7 +22,8 @@ ERROR_MESSAGES = {
     "connection_failed": (
         "Cannot connect to Obsidian REST API at {url}. "
         "To fix: 1) Ensure Obsidian is running, 2) Enable the Local REST API plugin in Obsidian settings, "
-        "3) Verify the API is running on port {port}, 4) Check if your firewall is blocking local connections"
+        "3) Verify the API is running on port {port}, 4) Check if your firewall is blocking local connections. "
+        "Note: You can override the URL with OBSIDIAN_API_URL environment variable"
     ),
     "note_not_found": (
         "Note not found at path: '{path}'. "
@@ -81,5 +82,29 @@ ERROR_MESSAGES = {
         "Invalid context_length: {length}. "
         "Must be between 10 and 500 characters. "
         "Use smaller values for brief previews, larger for more context"
+    ),
+    "invalid_sort_by": (
+        "Invalid sort_by parameter: '{value}'. "
+        "Must be either 'name' (alphabetical) or 'count' (by usage). "
+        "Default is 'name' for alphabetical sorting"
+    ),
+    "tag_collection_failed": (
+        "Failed to collect tags from vault: {error}. "
+        "This may happen if: 1) The Obsidian API is not responding, "
+        "2) There are permission issues with some notes, "
+        "3) The vault is very large (try again or use search_notes with specific tags)"
+    ),
+    "folder_listing_failed": (
+        "Failed to list folders in '{directory}': {error}. "
+        "To fix: 1) Verify the directory path is correct, "
+        "2) Check if the directory exists using list_notes, "
+        "3) Ensure you have permission to access this directory"
+    ),
+    "folder_move_failed": (
+        "Failed to move folder '{source}' to '{destination}': {error}. "
+        "To fix: 1) Verify both folder paths are correct, "
+        "2) Ensure the source folder exists and contains notes, "
+        "3) Check that destination is not a subfolder of source, "
+        "4) Verify you have permission to create/delete notes"
     ),
 }
