@@ -84,7 +84,10 @@ class ObsidianAPI:
         Raises:
             httpx.HTTPError: On connection errors
         """
-        url = f"{self.base_url}{endpoint}"
+        # Ensure proper URL construction without double slashes
+        base_url = self.base_url.rstrip('/')
+        endpoint = '/' + endpoint.lstrip('/')
+        url = f"{base_url}{endpoint}"
         
         async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
             try:
@@ -136,7 +139,10 @@ class ObsidianAPI:
             headers["Accept"] = "application/vnd.olrapi.note+json"
             
             async with httpx.AsyncClient(verify=False, timeout=DEFAULT_TIMEOUT) as client:
-                url = f"{self.base_url}{endpoint}"
+                # Ensure proper URL construction
+                base_url = self.base_url.rstrip('/')
+                endpoint = '/' + endpoint.lstrip('/')
+                url = f"{base_url}{endpoint}"
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
             

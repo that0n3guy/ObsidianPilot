@@ -24,6 +24,9 @@ from .tools import (
     remove_tags,
     get_note_info,
     list_tags,
+    get_backlinks,
+    get_outgoing_links,
+    find_broken_links,
 )
 
 # Check for API key
@@ -543,6 +546,125 @@ async def get_note_info_tool(path: str, ctx=None):
         raise McpError(str(e))
     except Exception as e:
         raise McpError(f"Failed to get note info: {str(e)}")
+
+@mcp.tool()
+async def get_backlinks_tool(
+    path: Annotated[str, Field(
+        description="Path to the note to find backlinks for",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Daily/2024-01-15.md", "Projects/AI Research.md"]
+    )],
+    include_context: Annotated[bool, Field(
+        description="Whether to include text context around links",
+        default=True
+    )] = True,
+    context_length: Annotated[int, Field(
+        description="Number of characters of context to include",
+        ge=50,
+        le=500,
+        default=100
+    )] = 100,
+    ctx=None
+):
+    """
+    Find all notes that link to a specific note (backlinks).
+    
+    When to use:
+    - Understanding which notes reference a concept or topic
+    - Discovering relationships between notes
+    - Finding notes that depend on the current note
+    - Building a mental map of note connections
+    
+    When NOT to use:
+    - Finding links FROM a note (use get_outgoing_links)
+    - Searching for broken links (use find_broken_links)
+    
+    Performance note:
+    - Fast for small vaults (<100 notes)
+    - May take several seconds for large vaults (1000+ notes)
+    - Consider using search_notes for specific link queries
+    
+    Returns:
+        All notes linking to the target with optional context
+    """
+    try:
+        return await get_backlinks(path, include_context, context_length, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to get backlinks: {str(e)}")
+
+@mcp.tool()
+async def get_outgoing_links_tool(
+    path: Annotated[str, Field(
+        description="Path to the note to extract links from",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Projects/Overview.md", "Index.md"]
+    )],
+    check_validity: Annotated[bool, Field(
+        description="Whether to check if linked notes exist",
+        default=False
+    )] = False,
+    ctx=None
+):
+    """
+    List all links from a specific note (outgoing links).
+    
+    When to use:
+    - Understanding what a note references
+    - Checking note dependencies before moving/deleting
+    - Exploring the structure of index or hub notes
+    - Validating links after changes
+    
+    When NOT to use:
+    - Finding notes that link TO this note (use get_backlinks)
+    - Searching across multiple notes (use find_broken_links)
+    
+    Returns:
+        All outgoing links with their types and optional validity status
+    """
+    try:
+        return await get_outgoing_links(path, check_validity, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to get outgoing links: {str(e)}")
+
+@mcp.tool()
+async def find_broken_links_tool(
+    directory: Annotated[Optional[str], Field(
+        description="Specific directory to check (optional, defaults to entire vault)",
+        default=None,
+        examples=[None, "Projects", "Archive/2023"]
+    )] = None,
+    ctx=None
+):
+    """
+    Find all broken links in the vault or a specific directory.
+    
+    When to use:
+    - After renaming or deleting notes
+    - Regular vault maintenance
+    - Before reorganizing folder structure
+    - Cleaning up after imports
+    
+    When NOT to use:
+    - Checking links in a single note (use get_outgoing_links with check_validity)
+    - Finding backlinks (use get_backlinks)
+    
+    Returns:
+        All broken links grouped by source note
+    """
+    try:
+        return await find_broken_links(directory, ctx)
+    except ValueError as e:
+        raise McpError(str(e))
+    except Exception as e:
+        raise McpError(f"Failed to find broken links: {str(e)}")
 
 @mcp.tool()
 async def list_tags_tool(

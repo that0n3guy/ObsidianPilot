@@ -1,7 +1,7 @@
 """Constants for Obsidian MCP server."""
 
 # Obsidian REST API configuration
-OBSIDIAN_BASE_URL = "https://localhost:27124"
+OBSIDIAN_BASE_URL = "https://127.0.0.1:27124"
 DEFAULT_TIMEOUT = 10  # seconds - reduced for local API
 DEFAULT_SEARCH_CONTEXT_LENGTH = 100
 DEFAULT_LIST_RECURSIVE = True

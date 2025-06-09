@@ -22,6 +22,11 @@ from .organization import (
     get_note_info,
     list_tags,
 )
+from .link_management import (
+    get_backlinks,
+    get_outgoing_links,
+    find_broken_links,
+)
 
 __all__ = [
     # Note management
@@ -43,4 +48,8 @@ __all__ = [
     "remove_tags",
     "get_note_info",
     "list_tags",
+    # Link management
+    "get_backlinks",
+    "get_outgoing_links",
+    "find_broken_links",
 ]

@@ -8,6 +8,7 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 - 🔍 **Smart search** - Find notes by content, tags, or modification date
 - 📁 **Browse vault** - List and navigate your notes and folders by directory
 - 🏷️ **Tag management** - Add, remove, and organize tags (supports both frontmatter and inline tags)
+- 🔗 **Link management** - Find backlinks, analyze outgoing links, and identify broken links
 - 📊 **Note insights** - Get statistics like word count and link analysis
 - 🎯 **AI-optimized** - Clear error messages and smart defaults for better AI interactions
 - 🔒 **Secure** - API key authentication with local-only connections
@@ -188,7 +189,8 @@ obsidian-mcp/
 │   ├── tools/              # Tool implementations
 │   │   ├── note_management.py    # CRUD operations
 │   │   ├── search_discovery.py   # Search and navigation
-│   │   └── organization.py       # Tags, moves, metadata
+│   │   ├── organization.py       # Tags, moves, metadata
+│   │   └── link_management.py    # Backlinks, outgoing links, broken links
 │   ├── models/             # Pydantic models for validation
 │   │   └── obsidian.py    # Note, SearchResult, VaultItem models
 │   ├── utils/              # Shared utilities
@@ -481,6 +483,93 @@ List all unique tags used across your vault with usage statistics.
 - May take several seconds for large vaults
 - Uses concurrent batching for optimization
 
+### Link Management
+
+#### `get_backlinks`
+Find all notes that link to a specific note.
+
+**Parameters:**
+- `path`: Path to the note to find backlinks for
+- `include_context` (default: `true`): Whether to include text context around links
+- `context_length` (default: `100`): Number of characters of context to include
+
+**Returns:**
+```json
+{
+  "target_note": "Projects/AI Research.md",
+  "backlink_count": 5,
+  "backlinks": [
+    {
+      "source_path": "Daily/2024-01-15.md",
+      "link_text": "AI Research",
+      "link_type": "wiki",
+      "context": "...working on the [[AI Research]] project today..."
+    }
+  ]
+}
+```
+
+**Use cases:**
+- Understanding which notes reference a concept or topic
+- Discovering relationships between notes
+- Building a mental map of note connections
+
+#### `get_outgoing_links`
+List all links from a specific note.
+
+**Parameters:**
+- `path`: Path to the note to extract links from
+- `check_validity` (default: `false`): Whether to check if linked notes exist
+
+**Returns:**
+```json
+{
+  "source_note": "Projects/Overview.md",
+  "link_count": 8,
+  "links": [
+    {
+      "path": "Projects/AI Research.md",
+      "display_text": "AI Research",
+      "type": "wiki",
+      "exists": true
+    }
+  ]
+}
+```
+
+**Use cases:**
+- Understanding what a note references
+- Checking note dependencies before moving/deleting
+- Exploring the structure of index or hub notes
+
+#### `find_broken_links`
+Find all broken links in the vault or a specific directory.
+
+**Parameters:**
+- `directory` (optional): Specific directory to check (defaults to entire vault)
+
+**Returns:**
+```json
+{
+  "directory": "/",
+  "broken_link_count": 3,
+  "affected_notes": 2,
+  "broken_links": [
+    {
+      "source_path": "Projects/Overview.md",
+      "broken_link": "Projects/Old Name.md",
+      "link_text": "Old Project",
+      "link_type": "wiki"
+    }
+  ]
+}
+```
+
+**Use cases:**
+- After renaming or deleting notes
+- Regular vault maintenance
+- Before reorganizing folder structure
+
 ## Testing
 
 ### Running Tests
@@ -633,6 +722,15 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 
 ## Changelog
 
+### v1.1.4 (2025-01-09)
+- 🔗 Added link management tools for comprehensive vault analysis:
+  - `get_backlinks` - Find all notes linking to a specific note
+  - `get_outgoing_links` - List all links from a note with validity checking
+  - `find_broken_links` - Identify broken links for vault maintenance
+- 🔧 Fixed URL construction to support both HTTPS (default) and HTTP endpoints
+- 📝 Enhanced link parsing to handle both wiki-style and markdown links
+- ⚡ Optimized backlink search to handle various path formats
+
 ### v1.1.3 (2025-01-09)
 - 🐛 Fixed search_by_date to properly find notes modified today (days_ago=0)
 - ✨ Added list_folders tool for exploring vault folder structure
@@ -670,8 +768,8 @@ twine check dist/*
 twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
 # 6. Create and push git tag
-git tag -a v1.1.3 -m "Release version 1.1.3"
-git push origin v1.1.3
+git tag -a v1.1.4 -m "Release version 1.1.4"
+git push origin v1.1.4
 ```
 
 Users can then install and run with:
