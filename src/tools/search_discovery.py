@@ -151,12 +151,15 @@ async def search_by_date(
     now = datetime.now()
     
     if operator == "within":
-        # For "within", we want notes from (now - days_ago) to now
-        start_date = now - timedelta(days=days_ago)
+        # For "within", we want notes from the start of (now - days_ago) to now
+        # Calculate the start of the target day
+        target_date = now - timedelta(days=days_ago)
+        start_date = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
         query_description = f"Notes {date_type} within last {days_ago} days"
     else:
         # For "exactly", we want notes from that specific day
-        start_date = now - timedelta(days=days_ago)
+        target_date = now - timedelta(days=days_ago)
+        start_date = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=1)
         query_description = f"Notes {date_type} exactly {days_ago} days ago"
     
