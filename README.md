@@ -104,7 +104,7 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
    Replace `your-api-key-here` with the API key you copied from Obsidian.
    
-   > **Using HTTP or custom port?** Add `"OBSIDIAN_API_URL": "http://127.0.0.1:27123"` to the env section. See [Advanced Configuration](#advanced-configuration) for details.
+   > **Using HTTPS or custom port?** Add `"OBSIDIAN_API_URL": "https://localhost:27124"` to the env section. See [Advanced Configuration](#advanced-configuration) for details.
 
 3. **Restart your AI tool** to load the new configuration.
 
@@ -149,12 +149,12 @@ Here are some example prompts to get started:
    - Install the Local REST API plugin in Obsidian
    - Enable the plugin in Obsidian settings
    - Copy the API key from the plugin settings
-   - Note the port number (default: 27124)
+   - Note the port number (default: 27123 for HTTP, 27124 for HTTPS)
 
 5. **Configure environment variables:**
    ```bash
    export OBSIDIAN_REST_API_KEY="your-api-key-here"
-   # export OBSIDIAN_API_URL="http://127.0.0.1:27123"  # Optional: only if not using default
+   # export OBSIDIAN_API_URL="https://localhost:27124"  # Optional: only if using HTTPS
    ```
 
 6. **Add to Claude Desktop (for development):**
@@ -172,8 +172,7 @@ Here are some example prompts to get started:
          "cwd": "/path/to/obsidian-mcp",
          "env": {
            "PYTHONPATH": "/path/to/obsidian-mcp",
-           "OBSIDIAN_REST_API_KEY": "your-api-key-here",
-           "OBSIDIAN_API_URL": "https://localhost:27124"
+           "OBSIDIAN_REST_API_KEY": "your-api-key-here"
          }
        }
      }
@@ -646,7 +645,7 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 ### "Connection refused" error
 - Ensure Obsidian is running
 - Verify the Local REST API plugin is enabled
-- Check that the port matches (default: 27124)
+- Check that the port matches (default: 27123 for HTTP, 27124 for HTTPS)
 - Confirm the API key is correct
 - The enhanced error will show the exact URL and port being used
 
@@ -708,7 +707,7 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 
 - **Keep your API key secret** - never commit it to version control
 - The server validates all paths to prevent directory traversal attacks
-- All communication with Obsidian uses HTTPS (self-signed certificate)
+- Communication with Obsidian uses HTTP by default (localhost only) or HTTPS with self-signed certificate
 - The server only accepts local connections through the REST API
 
 ## Development
@@ -728,6 +727,12 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 6. Test with MCP Inspector before deploying
 
 ## Changelog
+
+### v1.1.7 (2025-01-10)
+- 🔄 Changed default API endpoint to HTTP (`http://127.0.0.1:27123`) for easier setup
+- 📝 Updated documentation to reflect HTTP as default, HTTPS as optional
+- 🔧 Added note about automatic trailing slash handling in URLs
+- ✨ Improved first-time user experience with zero-configuration setup
 
 ### v1.1.6 (2025-01-10)
 - 🐛 Fixed timeout errors when creating or updating large notes
@@ -789,8 +794,8 @@ twine check dist/*
 twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
 # 6. Create and push git tag
-git tag -a v1.1.6 -m "Release version 1.1.6"
-git push origin v1.1.6
+git tag -a v1.1.7 -m "Release version 1.1.7"
+git push origin v1.1.7
 ```
 
 Users can then install and run with:
@@ -813,12 +818,13 @@ obsidian-mcp
 
 If you're using a non-standard setup, you can customize the server behavior with these environment variables:
 
-- `OBSIDIAN_API_URL` - Override the default API endpoint (default: `https://localhost:27124`)
-  - Use this if you're running the HTTP endpoint instead of HTTPS (e.g., `http://127.0.0.1:27123`)
+- `OBSIDIAN_API_URL` - Override the default API endpoint (default: `http://127.0.0.1:27123`)
+  - Use this if you're running the HTTPS endpoint (e.g., `https://localhost:27124`)
   - Or if you've changed the port number in the Local REST API plugin settings
-  - The HTTPS endpoint is used by default for security
+  - The HTTP endpoint is used by default for easier setup
+  - Note: Trailing slashes are handled automatically (both `http://127.0.0.1:27123` and `http://127.0.0.1:27123/` work)
 
-Example for non-standard configurations:
+Example for HTTPS or non-standard configurations:
 ```json
 {
   "mcpServers": {
@@ -827,7 +833,7 @@ Example for non-standard configurations:
       "args": ["obsidian-mcp"],
       "env": {
         "OBSIDIAN_REST_API_KEY": "your-api-key-here",
-        "OBSIDIAN_API_URL": "http://127.0.0.1:27123"
+        "OBSIDIAN_API_URL": "https://localhost:27124"
       }
     }
   }
