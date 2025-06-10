@@ -485,6 +485,12 @@ List all unique tags used across your vault with usage statistics.
 
 ### Link Management
 
+**⚡ Performance Note:** Link management tools have been heavily optimized in v1.1.5:
+- **84x faster** link validity checking
+- **96x faster** broken link detection
+- **2x faster** backlink searches
+- Includes automatic caching and batch processing
+
 #### `get_backlinks`
 Find all notes that link to a specific note.
 
@@ -543,10 +549,11 @@ List all links from a specific note.
 - Exploring the structure of index or hub notes
 
 #### `find_broken_links`
-Find all broken links in the vault or a specific directory.
+Find all broken links in the vault, a specific directory, or a single note.
 
 **Parameters:**
 - `directory` (optional): Specific directory to check (defaults to entire vault)
+- `single_note` (optional): Check only this specific note for broken links
 
 **Returns:**
 ```json

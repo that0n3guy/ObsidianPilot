@@ -641,26 +641,32 @@ async def find_broken_links_tool(
         default=None,
         examples=[None, "Projects", "Archive/2023"]
     )] = None,
+    single_note: Annotated[Optional[str], Field(
+        description="Check only this specific note (optional)",
+        default=None,
+        examples=["Daily/2025-01-09.md", "Projects/Overview.md"]
+    )] = None,
     ctx=None
 ):
     """
-    Find all broken links in the vault or a specific directory.
+    Find all broken links in the vault, a specific directory, or a single note.
     
     When to use:
     - After renaming or deleting notes
     - Regular vault maintenance
     - Before reorganizing folder structure
     - Cleaning up after imports
+    - Checking links in a specific note
     
     When NOT to use:
-    - Checking links in a single note (use get_outgoing_links with check_validity)
+    - Just getting outgoing links without needing broken status (use get_outgoing_links)
     - Finding backlinks (use get_backlinks)
     
     Returns:
-        All broken links grouped by source note
+        All broken links found in the specified scope
     """
     try:
-        return await find_broken_links(directory, ctx)
+        return await find_broken_links(directory, single_note, ctx)
     except ValueError as e:
         raise McpError(str(e))
     except Exception as e:
