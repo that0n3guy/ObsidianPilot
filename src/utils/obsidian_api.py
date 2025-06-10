@@ -32,6 +32,8 @@ class ObsidianAPI:
         
         # Allow base URL override from environment
         self.base_url = base_url or os.getenv("OBSIDIAN_API_URL", OBSIDIAN_BASE_URL)
+        # Ensure base URL doesn't end with a slash
+        self.base_url = self.base_url.rstrip('/')
         
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -189,8 +191,24 @@ class ObsidianAPI:
             )
             response.raise_for_status()
         
-        # Fetch the created note to get metadata
-        return await self.get_note(path)
+        # Try to fetch the created note to get metadata
+        # Sometimes Obsidian needs a moment to process large notes
+        try:
+            import asyncio
+            await asyncio.sleep(0.5)  # Small delay to let Obsidian process
+            return await self.get_note(path)
+        except (httpx.ReadTimeout, httpx.ConnectError):
+            # If we can't fetch the note, return a basic Note object
+            # The creation was successful (204 response), just can't get fresh metadata
+            from datetime import datetime
+            return Note(
+                path=path,
+                content=content,
+                metadata=NoteMetadata(
+                    created=datetime.now(),
+                    modified=datetime.now()
+                )
+            )
     
     async def update_note(self, path: str, content: str) -> Note:
         """
@@ -218,8 +236,20 @@ class ObsidianAPI:
             )
             response.raise_for_status()
         
-        # Fetch the updated note to get fresh metadata
-        return await self.get_note(path)
+        # Try to fetch the updated note to get fresh metadata
+        # Sometimes Obsidian needs a moment to process the update
+        try:
+            import asyncio
+            await asyncio.sleep(0.5)  # Small delay to let Obsidian process
+            return await self.get_note(path)
+        except (httpx.ReadTimeout, httpx.ConnectError):
+            # If we can't fetch the note, return a basic Note object
+            # The update was successful (204 response), just can't get fresh metadata
+            return Note(
+                path=path,
+                content=content,
+                metadata=NoteMetadata()
+            )
     
     async def delete_note(self, path: str) -> bool:
         """

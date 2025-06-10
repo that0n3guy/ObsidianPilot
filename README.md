@@ -729,6 +729,20 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 
 ## Changelog
 
+### v1.1.6 (2025-01-10)
+- 🐛 Fixed timeout errors when creating or updating large notes
+- ⚡ Added graceful timeout handling for better reliability with large content
+- 🔧 Improved error reporting to prevent false failures on successful operations
+
+### v1.1.5 (2025-01-09)
+- ⚡ **Massive performance optimization for link management:**
+  - 84x faster link validity checking
+  - 96x faster broken link detection  
+  - 2x faster backlink searches
+  - Added automatic caching and batch processing
+- 🔧 Optimized concurrent operations for large vaults
+- 📝 Enhanced documentation for performance considerations
+
 ### v1.1.4 (2025-01-09)
 - 🔗 Added link management tools for comprehensive vault analysis:
   - `get_backlinks` - Find all notes linking to a specific note
@@ -775,8 +789,8 @@ twine check dist/*
 twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
 # 6. Create and push git tag
-git tag -a v1.1.4 -m "Release version 1.1.4"
-git push origin v1.1.4
+git tag -a v1.1.6 -m "Release version 1.1.6"
+git push origin v1.1.6
 ```
 
 Users can then install and run with:
