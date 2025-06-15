@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-mcp"
-version = "1.1.8"
+version = "1.1.9"
 description = "MCP server for interacting with Obsidian vaults through the Local REST API"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Nate Strong", email = "nate@example.com"}
+    {name = "Nate Strong", email = "nathanstrong.fx@gmail.com"}
 ]
 keywords = ["mcp", "obsidian", "fastmcp", "llm", "ai", "notes", "knowledge-management"]
 classifiers = [
