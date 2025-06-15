@@ -1,7 +1,7 @@
 """Debug get_note issue."""
 
 import asyncio
-from src.utils import ObsidianAPI
+from obsidian_mcp.utils import ObsidianAPI
 
 async def test_get_note():
     """Test get_note directly."""

@@ -7,7 +7,7 @@ Run with: python tests/test_merge_strategy_demo.py
 import asyncio
 import os
 from datetime import datetime
-from src.tools import create_note, update_note, read_note, delete_note
+from obsidian_mcp.tools import create_note, update_note, read_note, delete_note
 
 
 async def demo_merge_strategies():

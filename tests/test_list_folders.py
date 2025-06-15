@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from src.tools import list_folders
+from obsidian_mcp.tools import list_folders
 
 async def test_list_folders():
     """Test listing folders in the vault."""

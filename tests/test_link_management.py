@@ -1,7 +1,7 @@
 """Tests for link management functionality."""
 
 import pytest
-from src.tools.link_management import (
+from obsidian_mcp.tools.link_management import (
     extract_links_from_content,
     get_link_context,
     get_backlinks,

@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
-from src.tools.search_discovery import search_by_date
+from obsidian_mcp.tools.search_discovery import search_by_date
 
 async def test_search_by_date():
     """Test the search_by_date function."""

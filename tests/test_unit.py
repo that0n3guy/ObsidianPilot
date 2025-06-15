@@ -7,10 +7,10 @@ Or without pytest: python tests/run_tests.py unit
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.tools.note_management import read_note, create_note, update_note, delete_note
-from src.tools.search_discovery import search_notes, list_notes
-from src.tools.organization import move_note, add_tags, remove_tags, get_note_info, _update_frontmatter_tags
-from src.models import Note, NoteMetadata, VaultItem
+from obsidian_mcp.tools.note_management import read_note, create_note, update_note, delete_note
+from obsidian_mcp.tools.search_discovery import search_notes, list_notes
+from obsidian_mcp.tools.organization import move_note, add_tags, remove_tags, get_note_info, _update_frontmatter_tags
+from obsidian_mcp.models import Note, NoteMetadata, VaultItem
 
 
 @pytest.fixture

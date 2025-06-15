@@ -6,11 +6,11 @@ Run with: pytest tests/test_integration.py -v
 
 import pytest
 from unittest.mock import patch, AsyncMock
-from src.tools import (
+from obsidian_mcp.tools import (
     read_note, create_note, update_note, delete_note,
     search_notes, list_notes, move_note, add_tags, get_note_info
 )
-from src.models import Note, NoteMetadata, VaultItem
+from obsidian_mcp.models import Note, NoteMetadata, VaultItem
 
 
 class MockContext:
@@ -242,7 +242,7 @@ class TestModelValidation:
     
     def test_tag_validation(self):
         """Test tag name cleaning."""
-        from src.models import Tag
+        from obsidian_mcp.models import Tag
         
         tag = Tag(name="#test", count=5)
         assert tag.name == "test"  # # should be removed

@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from src.tools.link_management import get_backlinks, extract_links_from_content
+from obsidian_mcp.tools.link_management import get_backlinks, extract_links_from_content
 
 # Set the API key from environment
 if not os.getenv("OBSIDIAN_REST_API_KEY"):
@@ -12,8 +12,8 @@ if not os.getenv("OBSIDIAN_REST_API_KEY"):
 
 async def test_backlinks():
     """Test finding backlinks for Apple TOC."""
-    from src.utils import ObsidianAPI
-    from src.tools.search_discovery import list_notes
+    from obsidian_mcp.utils import ObsidianAPI
+    from obsidian_mcp.tools.search_discovery import list_notes
     api = ObsidianAPI()
     
     print("Looking for Apple TOC note...")

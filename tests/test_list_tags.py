@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from src.tools import list_tags
+from obsidian_mcp.tools import list_tags
 
 async def test_list_tags():
     """Test listing all tags in the vault."""

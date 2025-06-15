@@ -1,7 +1,7 @@
 """Simple test for search_by_date tool."""
 
 import asyncio
-from src.tools import search_by_date
+from obsidian_mcp.tools import search_by_date
 
 async def main():
     print("Testing search_by_date tool...\n")
