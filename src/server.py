@@ -36,7 +36,7 @@ if not os.getenv("OBSIDIAN_REST_API_KEY"):
 # Create FastMCP server instance
 mcp = FastMCP(
     "obsidian-mcp",
-    description="MCP server for interacting with Obsidian vaults through the Local REST API"
+    instructions="MCP server for interacting with Obsidian vaults through the Local REST API"
 )
 
 # Register tools with proper error handling
@@ -439,8 +439,8 @@ async def add_tags_tool(
     )],
     tags: Annotated[List[str], Field(
         description="Tags to add (without # prefix)",
-        min_items=1,
-        max_items=50,
+        min_length=1,
+        max_length=50,
         examples=[["project", "urgent"], ["meeting", "followup", "q1-2024"]]
     )],
     ctx=None
@@ -477,8 +477,8 @@ async def update_tags_tool(
     )],
     tags: Annotated[List[str], Field(
         description="New tags to set (without # prefix)",
-        min_items=0,
-        max_items=50,
+        min_length=0,
+        max_length=50,
         examples=[["meeting", "important", "q1-2025"], ["ai", "research", "neural-networks"]]
     )],
     merge: Annotated[bool, Field(

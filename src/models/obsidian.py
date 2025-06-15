@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class NoteMetadata(BaseModel):
@@ -22,7 +22,7 @@ class Note(BaseModel):
     content: str = Field(..., description="Markdown content of the note")
     metadata: NoteMetadata = Field(default_factory=NoteMetadata, description="Note metadata")
     
-    @validator("path")
+    @field_validator("path")
     def validate_path(cls, v):
         """Ensure path doesn't contain invalid characters."""
         if not v or ".." in v:
@@ -55,7 +55,7 @@ class Tag(BaseModel):
     count: int = Field(default=0, description="Number of notes with this tag")
     notes: List[str] = Field(default_factory=list, description="Paths to notes with this tag")
     
-    @validator("name")
+    @field_validator("name")
     def clean_tag_name(cls, v):
         """Remove # prefix if present."""
         return v.lstrip("#")

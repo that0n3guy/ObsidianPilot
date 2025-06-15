@@ -728,6 +728,13 @@ Use 'created' to find notes by creation date, 'modified' for last edit date
 
 ## Changelog
 
+### v1.1.8 (2025-01-15)
+- 🔧 Fixed FastMCP compatibility issue that prevented PyPI package from running
+- 📦 Updated to FastMCP 2.8.1 for better stability
+- 🐛 Fixed Pydantic V2 deprecation warnings (migrated to @field_validator)
+- ✨ Changed FastMCP initialization to use 'instructions' parameter
+- 🚀 Improved compatibility with uvx and pipx installation methods
+
 ### v1.1.7 (2025-01-10)
 - 🔄 Changed default API endpoint to HTTP (`http://127.0.0.1:27123`) for easier setup
 - 📝 Updated documentation to reflect HTTP as default, HTTPS as optional
@@ -794,8 +801,8 @@ twine check dist/*
 twine upload dist/* -u __token__ -p $PYPI_API_KEY
 
 # 6. Create and push git tag
-git tag -a v1.1.7 -m "Release version 1.1.7"
-git push origin v1.1.7
+git tag -a v1.1.8 -m "Release version 1.1.8"
+git push origin v1.1.8
 ```
 
 Users can then install and run with:
