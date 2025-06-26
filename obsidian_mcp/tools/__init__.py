@@ -9,6 +9,8 @@ from .note_management import (
 from .search_discovery import (
     search_notes,
     search_by_date,
+    search_by_regex,
+    search_by_property,
     list_notes,
     list_folders,
 )
@@ -27,6 +29,12 @@ from .link_management import (
     get_outgoing_links,
     find_broken_links,
 )
+from .image_management import (
+    read_image,
+)
+from .view_note_images import (
+    view_note_images,
+)
 
 __all__ = [
     # Note management
@@ -37,6 +45,8 @@ __all__ = [
     # Search and discovery
     "search_notes",
     "search_by_date",
+    "search_by_regex",
+    "search_by_property",
     "list_notes",
     "list_folders",
     # Organization
@@ -52,4 +62,7 @@ __all__ = [
     "get_backlinks",
     "get_outgoing_links",
     "find_broken_links",
+    # Image management
+    "read_image",
+    "view_note_images",
 ]

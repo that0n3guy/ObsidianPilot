@@ -1,10 +1,18 @@
 """Main entry point for Obsidian MCP server."""
 
 import os
+import logging
 from typing import Annotated, Optional, List, Literal
 from pydantic import Field
 from fastmcp import FastMCP
-from fastmcp.exceptions import McpError
+from fastmcp.exceptions import ToolError
+from .utils.filesystem import init_vault
+
+# Configure logging
+logging.basicConfig(
+    level=os.getenv("OBSIDIAN_LOG_LEVEL", "INFO"),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Import all tools
 from .tools import (
@@ -14,6 +22,8 @@ from .tools import (
     delete_note,
     search_notes,
     search_by_date,
+    search_by_regex,
+    search_by_property,
     list_notes,
     list_folders,
     move_note,
@@ -27,23 +37,28 @@ from .tools import (
     get_backlinks,
     get_outgoing_links,
     find_broken_links,
+    read_image,
+    view_note_images,
 )
 
-# Check for API key
-if not os.getenv("OBSIDIAN_REST_API_KEY"):
-    raise ValueError("OBSIDIAN_REST_API_KEY environment variable must be set")
+# Check for vault path
+if not os.getenv("OBSIDIAN_VAULT_PATH"):
+    raise ValueError("OBSIDIAN_VAULT_PATH environment variable must be set")
+
+# Initialize vault
+init_vault()
 
 # Create FastMCP server instance
 mcp = FastMCP(
     "obsidian-mcp",
-    instructions="MCP server for interacting with Obsidian vaults through the Local REST API"
+    instructions="MCP server for direct filesystem access to Obsidian vaults"
 )
 
 # Register tools with proper error handling
 @mcp.tool()
 async def read_note_tool(
     path: Annotated[str, Field(
-        description="Path to the note relative to vault root",
+        description="Note location within your vault (e.g., 'Projects/AI Research.md'). Use forward slashes for folders.",
         pattern=r"^[^/].*\.md$",
         min_length=1,
         max_length=255,
@@ -63,28 +78,34 @@ async def read_note_tool(
     When NOT to use:
     - Searching multiple notes (use search_notes instead)
     - Getting only metadata (use get_note_info for efficiency)
+    - Viewing images in a note (use view_note_images instead)
     
     Returns:
-        Note content and metadata including tags, aliases, and frontmatter
+        Note content and metadata including tags, aliases, and frontmatter.
+        Image references (![alt](path)) are preserved in the content but images are not loaded.
+        
+    IMPORTANT: If the note contains image references, proactively offer to analyze them:
+    "I can see this note contains [N] images. Would you like me to analyze/examine them for you?"
+    Then use view_note_images to load and analyze the images if requested.
     """
     try:
         return await read_note(path, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to read note: {str(e)}")
+        raise ToolError(f"Failed to read note: {str(e)}")
 
 @mcp.tool()
 async def create_note_tool(
     path: Annotated[str, Field(
-        description="Path where the note should be created relative to vault root",
+        description="Where to create the new note in your vault. Folders will be created automatically if needed.",
         pattern=r"^[^/].*\.md$",
         min_length=1,
         max_length=255,
         examples=["Ideas/New Idea.md", "Daily/2024-01-15.md", "Projects/Project Plan.md"]
     )],
     content: Annotated[str, Field(
-        description="Markdown content for the note. Consider adding tags (use list_tags to see existing ones)",
+        description="The markdown content for your note. Can include headings (#), tags (#tag), links ([[other note]]), and frontmatter.",
         min_length=0,
         max_length=1000000,
         examples=[
@@ -93,7 +114,7 @@ async def create_note_tool(
         ]
     )],
     overwrite: Annotated[bool, Field(
-        description="Whether to overwrite if the note already exists",
+        description="Set to true to replace an existing note at this location. Use carefully as this deletes the original content.",
         default=False
     )] = False,
     ctx=None
@@ -116,30 +137,30 @@ async def create_note_tool(
     try:
         return await create_note(path, content, overwrite, ctx)
     except (ValueError, FileExistsError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to create note: {str(e)}")
+        raise ToolError(f"Failed to create note: {str(e)}")
 
 @mcp.tool()
 async def update_note_tool(
     path: Annotated[str, Field(
-        description="Path to the note to update",
+        description="Which note to update in your vault",
         pattern=r"^[^/].*\.md$",
         min_length=1,
         max_length=255,
         examples=["Daily/2024-01-15.md", "Projects/Project.md"]
     )],
     content: Annotated[str, Field(
-        description="New markdown content (REPLACES existing content unless using append)",
+        description="New content for the note. By default this REPLACES all existing content. Use merge_strategy='append' to add to the end instead.",
         min_length=0,
         max_length=1000000
     )],
     create_if_not_exists: Annotated[bool, Field(
-        description="Create the note if it doesn't exist",
+        description="Automatically create the note if it doesn't exist yet",
         default=False
     )] = False,
     merge_strategy: Annotated[Literal["replace", "append"], Field(
-        description="How to handle content: 'replace' overwrites, 'append' adds to end",
+        description="How to handle existing content. 'replace' = overwrite everything (default), 'append' = add new content to the end",
         default="replace"
     )] = "replace",
     ctx=None
@@ -165,9 +186,9 @@ async def update_note_tool(
     try:
         return await update_note(path, content, create_if_not_exists, merge_strategy, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to update note: {str(e)}")
+        raise ToolError(f"Failed to update note: {str(e)}")
 
 @mcp.tool()
 async def delete_note_tool(path: str, ctx=None):
@@ -183,25 +204,27 @@ async def delete_note_tool(path: str, ctx=None):
     try:
         return await delete_note(path, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to delete note: {str(e)}")
+        raise ToolError(f"Failed to delete note: {str(e)}")
 
 @mcp.tool()
 async def search_notes_tool(
     query: Annotated[str, Field(
-        description="Search query supporting Obsidian syntax",
+        description="What to search for in your notes. Use plain text or special prefixes: 'tag:' for tags (supports hierarchical tags), 'path:' for folders/filenames, 'property:' for metadata.",
         min_length=1,
         max_length=500,
         examples=[
             "machine learning",
-            "tag:#project",
+            "tag:project",
+            "tag:project/web",
+            "tag:urgent",
             "path:Daily/",
-            "tag:#urgent TODO"
+            "property:status:active"
         ]
     )],
     context_length: Annotated[int, Field(
-        description="Number of characters to show around matches",
+        description="How much text to show around each match for context. Higher values show more surrounding content.",
         ge=10,
         le=500,
         default=100
@@ -213,8 +236,14 @@ async def search_notes_tool(
     
     When to use:
     - Finding notes by content keywords
-    - Locating notes with specific tags
+    - Locating notes with specific tags (supports hierarchical tags like #project/web)
     - Searching within specific folders
+    - Finding notes by frontmatter properties
+    
+    Tag search supports hierarchical tags:
+    - "tag:project" finds all project-related tags including project/web, project/mobile
+    - "tag:web" finds any tag ending with "web" like project/web, design/web
+    - "tag:project/web" finds exact hierarchical tag
     
     When NOT to use:
     - Searching by date (use search_by_date instead)
@@ -227,25 +256,25 @@ async def search_notes_tool(
     try:
         return await search_notes(query, context_length, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Search failed: {str(e)}")
+        raise ToolError(f"Search failed: {str(e)}")
 
 @mcp.tool()
 async def search_by_date_tool(
     date_type: Annotated[Literal["created", "modified"], Field(
-        description="Type of date to search by",
+        description="Which date to search by: when the note was first created or last modified",
         default="modified"
     )] = "modified",
     days_ago: Annotated[int, Field(
-        description="Number of days to look back from today",
+        description="How many days back to search from today. 0 = today, 1 = yesterday, 7 = last week",
         ge=0,
         le=365,
         default=7,
         examples=[0, 1, 7, 30]
     )] = 7,
     operator: Annotated[Literal["within", "exactly"], Field(
-        description="Search operator for date matching",
+        description="'within' = all notes in the last N days, 'exactly' = only notes from exactly N days ago",
         default="within"
     )] = "within",
     ctx=None
@@ -268,9 +297,129 @@ async def search_by_date_tool(
     try:
         return await search_by_date(date_type, days_ago, operator, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Date search failed: {str(e)}")
+        raise ToolError(f"Date search failed: {str(e)}")
+
+@mcp.tool()
+async def search_by_regex_tool(
+    pattern: Annotated[str, Field(
+        description="Regular expression pattern for advanced searches. Use for finding URLs, code patterns, TODO items, etc.",
+        min_length=1,
+        examples=[r"TODO\s*:.*", r"https?://[^\s]+", r"def\s+\w+\("]
+    )],
+    flags: Annotated[Optional[List[Literal["ignorecase", "multiline", "dotall"]]], Field(
+        description="Options for regex matching: 'ignorecase' = case-insensitive, 'multiline' = ^ and $ match line boundaries, 'dotall' = . matches newlines",
+        default=None
+    )] = None,
+    context_length: Annotated[int, Field(
+        description="Characters to show around matches",
+        default=100,
+        ge=10,
+        le=500
+    )] = 100,
+    max_results: Annotated[int, Field(
+        description="Maximum number of notes to return. Use smaller values for faster responses.",
+        default=50,
+        ge=1,
+        le=200
+    )] = 50,
+    ctx=None
+):
+    """
+    Search for notes using regular expressions for advanced pattern matching.
+    
+    When to use:
+    - Finding complex patterns (URLs, code syntax, structured data)
+    - Searching with wildcards and special characters
+    - Case-sensitive or multi-line pattern matching
+    - Finding TODO/FIXME comments with context
+    
+    When NOT to use:
+    - Simple text search (use search_notes instead)
+    - Searching by tags or properties (use dedicated tools)
+    
+    Common patterns:
+    - URLs: r"https?://[^\s]+"
+    - Email: r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    - TODO comments: r"(TODO|FIXME)\s*:.*"
+    - Markdown headers: r"^#{1,6}\s+.*"
+    - Code blocks: r"```\w*\n[\s\S]*?```"
+    
+    Returns:
+        Notes containing regex matches with match details and context
+    """
+    try:
+        return await search_by_regex(pattern, flags, context_length, max_results, ctx)
+    except ValueError as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Regex search failed: {str(e)}")
+
+@mcp.tool()
+async def search_by_property_tool(
+    property_name: Annotated[str, Field(
+        description="The frontmatter property to search for (e.g., 'status', 'priority'). These are metadata fields at the top of notes.",
+        min_length=1,
+        examples=["status", "priority", "author", "tags", "deadline"]
+    )],
+    value: Annotated[Optional[str], Field(
+        description="The value to match against. Not needed when using 'exists' to just check if property is present.",
+        default=None,
+        examples=["active", "high", "2024-01-15", "John Doe"]
+    )] = None,
+    operator: Annotated[Literal["=", "!=", ">", "<", ">=", "<=", "contains", "exists"], Field(
+        description="How to compare: '=' exact match, '!=' not equal, '>/</>=/<=' for numbers/dates, 'contains' partial match, 'exists' just checks presence",
+        default="="
+    )] = "=",
+    context_length: Annotated[int, Field(
+        description="Characters of note content to include",
+        default=100,
+        ge=0,
+        le=500
+    )] = 100,
+    ctx=None
+):
+    """
+    Search for notes by their frontmatter property values.
+    
+    When to use:
+    - Finding notes with specific metadata (status, priority, etc.)
+    - Filtering by numeric properties (rating > 4, priority <= 2)
+    - Filtering by date properties (deadline < "2024-12-31")
+    - Searching within array/list properties (tags, aliases, categories)
+    - Checking which notes have certain properties defined
+    - Building database-like queries on your notes
+    
+    Property types supported:
+    - Text/String: Exact match or contains
+    - Numbers: Comparison operators work numerically
+    - Dates: ISO format (YYYY-MM-DD) with intelligent comparison
+    - Arrays/Lists: Searches within list items, comparisons use list length
+    - Legacy properties: Automatically handles tag→tags, alias→aliases migrations
+    
+    When NOT to use:
+    - Content search (use search_notes instead)
+    - Tag search (use search_notes with tag: prefix)
+    - Path/filename search (use search_notes with path: prefix)
+    
+    Examples:
+    - Find active projects: property_name="status", value="active"
+    - Find high priority: property_name="priority", operator=">", value="2"
+    - Find notes with deadlines: property_name="deadline", operator="exists"
+    - Find notes by author: property_name="author", operator="contains", value="john"
+    - Find notes with tag in list: property_name="tags", value="project"
+    - Find past deadlines: property_name="due_date", operator="<", value="2024-01-01"
+    
+    Returns:
+        Notes matching the property criteria with values displayed
+    """
+    try:
+        return await search_by_property(property_name, value, operator, context_length, ctx)
+    except ValueError as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Property search failed: {str(e)}")
 
 @mcp.tool()
 async def list_notes_tool(directory: str = None, recursive: bool = True, ctx=None):
@@ -287,7 +436,7 @@ async def list_notes_tool(directory: str = None, recursive: bool = True, ctx=Non
     try:
         return await list_notes(directory, recursive, ctx)
     except Exception as e:
-        raise McpError(f"Failed to list notes: {str(e)}")
+        raise ToolError(f"Failed to list notes: {str(e)}")
 
 @mcp.tool()
 async def list_folders_tool(
@@ -321,9 +470,9 @@ async def list_folders_tool(
     try:
         return await list_folders(directory, recursive, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to list folders: {str(e)}")
+        raise ToolError(f"Failed to list folders: {str(e)}")
 
 @mcp.tool()
 async def move_note_tool(source_path: str, destination_path: str, update_links: bool = True, ctx=None):
@@ -341,9 +490,9 @@ async def move_note_tool(source_path: str, destination_path: str, update_links: 
     try:
         return await move_note(source_path, destination_path, update_links, ctx)
     except (ValueError, FileNotFoundError, FileExistsError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to move note: {str(e)}")
+        raise ToolError(f"Failed to move note: {str(e)}")
 
 @mcp.tool()
 async def create_folder_tool(
@@ -364,7 +513,7 @@ async def create_folder_tool(
     
     When to use:
     - Setting up project structure in advance
-    - Creating deep folder hierarchies (e.g., "Apple/Studies/J71P")
+    - Creating deep folder hierarchies (e.g., "Research/Studies/2024")
     - Creating archive folders before moving notes
     - Establishing organizational hierarchy
     - Preparing folders for future content
@@ -373,8 +522,8 @@ async def create_folder_tool(
     - If you're about to create a note in that path (folders are created automatically)
     - For temporary organization (just create notes directly)
     
-    Note: Will create all necessary parent folders. For example, "Apple/Studies/J71P"
-    will create Apple, Apple/Studies, and Apple/Studies/J71P if they don't exist.
+    Note: Will create all necessary parent folders. For example, "Research/Studies/2024"
+    will create Research, Research/Studies, and Research/Studies/2024 if they don't exist.
     
     Returns:
         Creation status with list of folders created and placeholder file path
@@ -382,9 +531,9 @@ async def create_folder_tool(
     try:
         return await create_folder(folder_path, create_placeholder, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to create folder: {str(e)}")
+        raise ToolError(f"Failed to create folder: {str(e)}")
 
 @mcp.tool()
 async def move_folder_tool(
@@ -425,9 +574,9 @@ async def move_folder_tool(
     try:
         return await move_folder(source_folder, destination_folder, update_links, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to move folder: {str(e)}")
+        raise ToolError(f"Failed to move folder: {str(e)}")
 
 @mcp.tool()
 async def add_tags_tool(
@@ -438,10 +587,10 @@ async def add_tags_tool(
         max_length=255
     )],
     tags: Annotated[List[str], Field(
-        description="Tags to add (without # prefix)",
+        description="List of tags to add to the note. Don't include the # symbol - it will be added automatically. Supports hierarchical tags with forward slashes.",
         min_length=1,
         max_length=50,
-        examples=[["project", "urgent"], ["meeting", "followup", "q1-2024"]]
+        examples=[["project", "urgent"], ["project/web", "project/mobile"], ["work/meetings/standup", "work/meetings/planning"]]
     )],
     ctx=None
 ):
@@ -450,12 +599,18 @@ async def add_tags_tool(
     
     When to use:
     - Organizing notes with tags
+    - Creating hierarchical tag structures (e.g., project/web, work/meetings/standup)
     - Bulk tagging operations
     - Adding metadata for search
     
+    Tag format:
+    - Simple tags: "project", "urgent"
+    - Hierarchical tags: "project/web", "work/meetings/standup"
+    - Tags are automatically added without duplicates
+    
     When NOT to use:
     - Adding tags in note content (use update_note)
-    - Replacing all tags (use update_note with new frontmatter)
+    - Replacing all tags (use update_tags with merge=False)
     
     Returns:
         Updated tag list for the note
@@ -463,9 +618,9 @@ async def add_tags_tool(
     try:
         return await add_tags(path, tags, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to add tags: {str(e)}")
+        raise ToolError(f"Failed to add tags: {str(e)}")
 
 @mcp.tool()
 async def update_tags_tool(
@@ -476,13 +631,13 @@ async def update_tags_tool(
         max_length=255
     )],
     tags: Annotated[List[str], Field(
-        description="New tags to set (without # prefix)",
+        description="New tags for the note. Empty list removes all tags. Don't include # symbols. Supports hierarchical tags with forward slashes.",
         min_length=0,
         max_length=50,
-        examples=[["meeting", "important", "q1-2025"], ["ai", "research", "neural-networks"]]
+        examples=[["meeting", "important", "q1-2025"], ["project/ai", "research/neural-networks", "status/active"]]
     )],
     merge: Annotated[bool, Field(
-        description="If True, adds to existing tags. If False, replaces all tags",
+        description="True = add these tags to existing ones, False = replace all tags with this new list",
         default=False
     )] = False,
     ctx=None
@@ -506,9 +661,9 @@ async def update_tags_tool(
     try:
         return await update_tags(path, tags, merge, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to update tags: {str(e)}")
+        raise ToolError(f"Failed to update tags: {str(e)}")
 
 @mcp.tool()
 async def remove_tags_tool(path: str, tags: list[str], ctx=None):
@@ -525,9 +680,9 @@ async def remove_tags_tool(path: str, tags: list[str], ctx=None):
     try:
         return await remove_tags(path, tags, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to remove tags: {str(e)}")
+        raise ToolError(f"Failed to remove tags: {str(e)}")
 
 @mcp.tool()
 async def get_note_info_tool(path: str, ctx=None):
@@ -543,9 +698,9 @@ async def get_note_info_tool(path: str, ctx=None):
     try:
         return await get_note_info(path, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to get note info: {str(e)}")
+        raise ToolError(f"Failed to get note info: {str(e)}")
 
 @mcp.tool()
 async def get_backlinks_tool(
@@ -557,11 +712,11 @@ async def get_backlinks_tool(
         examples=["Daily/2024-01-15.md", "Projects/AI Research.md"]
     )],
     include_context: Annotated[bool, Field(
-        description="Whether to include text context around links",
+        description="Include the text surrounding each link to understand why the link was made",
         default=True
     )] = True,
     context_length: Annotated[int, Field(
-        description="Number of characters of context to include",
+        description="How much surrounding text to show for each link (in characters)",
         ge=50,
         le=500,
         default=100
@@ -592,9 +747,9 @@ async def get_backlinks_tool(
     try:
         return await get_backlinks(path, include_context, context_length, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to get backlinks: {str(e)}")
+        raise ToolError(f"Failed to get backlinks: {str(e)}")
 
 @mcp.tool()
 async def get_outgoing_links_tool(
@@ -606,7 +761,7 @@ async def get_outgoing_links_tool(
         examples=["Projects/Overview.md", "Index.md"]
     )],
     check_validity: Annotated[bool, Field(
-        description="Whether to check if linked notes exist",
+        description="Also check if each linked note actually exists in your vault",
         default=False
     )] = False,
     ctx=None
@@ -630,19 +785,19 @@ async def get_outgoing_links_tool(
     try:
         return await get_outgoing_links(path, check_validity, ctx)
     except (ValueError, FileNotFoundError) as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to get outgoing links: {str(e)}")
+        raise ToolError(f"Failed to get outgoing links: {str(e)}")
 
 @mcp.tool()
 async def find_broken_links_tool(
     directory: Annotated[Optional[str], Field(
-        description="Specific directory to check (optional, defaults to entire vault)",
+        description="Check only this folder and its subfolders. Leave empty to check entire vault.",
         default=None,
         examples=[None, "Projects", "Archive/2023"]
     )] = None,
     single_note: Annotated[Optional[str], Field(
-        description="Check only this specific note (optional)",
+        description="Check links in just this one note instead of the whole vault or directory",
         default=None,
         examples=["Daily/2025-01-09.md", "Projects/Overview.md"]
     )] = None,
@@ -668,18 +823,18 @@ async def find_broken_links_tool(
     try:
         return await find_broken_links(directory, single_note, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to find broken links: {str(e)}")
+        raise ToolError(f"Failed to find broken links: {str(e)}")
 
 @mcp.tool()
 async def list_tags_tool(
     include_counts: Annotated[bool, Field(
-        description="Whether to include usage count for each tag",
+        description="Show how many times each tag is used across your vault",
         default=True
     )] = True,
     sort_by: Annotated[Literal["name", "count"], Field(
-        description="How to sort results - by name (alphabetical) or count (usage)",
+        description="Sort tags alphabetically by 'name' or by popularity with 'count'",
         default="name"
     )] = "name",
     ctx=None
@@ -692,6 +847,12 @@ async def list_tags_tool(
     - Getting an overview of your tagging taxonomy
     - Finding underused or overused tags
     - Discovering tag variations (e.g., 'project' vs 'projects')
+    - Understanding hierarchical tag structures in your vault
+    
+    Hierarchical tags:
+    - Lists both parent and full hierarchical paths (e.g., both "project" and "project/web")
+    - Shows how nested tags are organized in your vault
+    - Helps identify opportunities for better tag organization
     
     When NOT to use:
     - Getting tags for a specific note (use get_note_info)
@@ -709,11 +870,90 @@ async def list_tags_tool(
     try:
         return await list_tags(include_counts, sort_by, ctx)
     except ValueError as e:
-        raise McpError(str(e))
+        raise ToolError(str(e))
     except Exception as e:
-        raise McpError(f"Failed to list tags: {str(e)}")
+        raise ToolError(f"Failed to list tags: {str(e)}")
 
+@mcp.tool()
+async def read_image_tool(
+    path: Annotated[str, Field(
+        description="Path to the image file relative to vault root",
+        pattern=r"^[^/].*\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$",
+        min_length=1,
+        max_length=255,
+        examples=["attachments/screenshot.png", "images/diagram.jpg", "media/logo.svg"]
+    )],
+    include_metadata: Annotated[bool, Field(
+        description="Include file size and other metadata about the image",
+        default=False
+    )] = False,
+    ctx=None
+):
+    """
+    Read an image file from the Obsidian vault for analysis.
+    
+    When to use:
+    - Analyzing specific image files from the vault
+    - Examining standalone images (not embedded in notes)
+    - Processing images for detailed analysis
+    
+    When NOT to use:
+    - Getting images embedded in notes (use view_note_images instead)
+    - Searching for images (use list_notes with appropriate filters)
+    
+    Returns:
+        Image object that Claude can analyze and describe
+    """
+    try:
+        return await read_image(path, include_metadata, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to read image: {str(e)}")
 
+@mcp.tool()
+async def view_note_images_tool(
+    path: Annotated[str, Field(
+        description="Path to the note containing images",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Projects/Design.md", "Daily/2024-01-15.md", "Ideas/Mockups.md"]
+    )],
+    image_index: Annotated[Optional[int], Field(
+        description="Get only the Nth image from the note (0 = first image). Leave empty to get all images.",
+        default=None,
+        ge=0
+    )] = None,
+    max_width: Annotated[int, Field(
+        description="Resize images wider than this to save memory. Images smaller than this are unchanged.",
+        default=1600,
+        gt=0,
+        le=4096
+    )] = 800,
+    ctx=None
+):
+    """
+    Extract and analyze images embedded in a note.
+    
+    When to use:
+    - Analyzing images referenced in a note's markdown content
+    - Examining visual content within notes (screenshots, diagrams, etc.)
+    - Extracting specific images from notes for analysis
+    
+    When NOT to use:
+    - Reading standalone image files (use read_image instead)
+    - Getting note content without images (use read_note instead)
+    
+    Returns:
+        List of Image objects that Claude can analyze and describe
+    """
+    try:
+        return await view_note_images(path, image_index, max_width, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to view note images: {str(e)}")
 
 
 def main():

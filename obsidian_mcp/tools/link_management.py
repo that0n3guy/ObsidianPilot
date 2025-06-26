@@ -3,7 +3,8 @@
 import re
 import asyncio
 from typing import List, Optional, Dict, Set, Tuple
-from ..utils import ObsidianAPI, is_markdown_file
+from ..utils.filesystem import get_vault
+from ..utils import is_markdown_file
 from ..utils.validation import validate_note_path
 
 
@@ -17,7 +18,7 @@ _cache_timestamp: Optional[float] = None
 CACHE_TTL = 300  # 5 minutes
 
 
-async def build_vault_notes_index(api: ObsidianAPI, force_refresh: bool = False) -> Dict[str, str]:
+async def build_vault_notes_index(vault, force_refresh: bool = False) -> Dict[str, str]:
     """
     Build an index of all notes in the vault.
     Maps note names to their full paths.
@@ -35,33 +36,24 @@ async def build_vault_notes_index(api: ObsidianAPI, force_refresh: bool = False)
     # Build fresh index
     notes_index = {}
     
-    async def scan_directory(directory: str = ""):
-        """Recursively scan directory and build index."""
-        try:
-            items = await api.get_vault_structure(directory)
-            
-            # Process all items in parallel
-            tasks = []
-            for item in items:
-                full_path = f"{directory}/{item.path}" if directory else item.path
-                
-                if item.is_folder:
-                    tasks.append(scan_directory(full_path))
-                elif is_markdown_file(full_path):
-                    # Map both with and without .md extension
-                    note_name = item.name
-                    notes_index[note_name] = full_path
-                    if note_name.endswith('.md'):
-                        notes_index[note_name[:-3]] = full_path
-            
-            # Wait for all subdirectory scans
-            if tasks:
-                await asyncio.gather(*tasks)
-                
-        except Exception:
-            pass
+    # Get all notes from the vault
+    all_notes = await vault.list_notes(recursive=True)
     
-    await scan_directory()
+    for note_info in all_notes:
+        full_path = note_info["path"]
+        note_name = note_info["name"]
+        
+        # Map both with and without .md extension
+        notes_index[note_name] = full_path
+        if note_name.endswith('.md'):
+            notes_index[note_name[:-3]] = full_path
+        
+        # Also map by just the filename without path
+        filename = full_path.split('/')[-1]
+        if filename != note_name:
+            notes_index[filename] = full_path
+            if filename.endswith('.md'):
+                notes_index[filename[:-3]] = full_path
     
     # Update cache
     _vault_notes_cache = notes_index
@@ -70,14 +62,14 @@ async def build_vault_notes_index(api: ObsidianAPI, force_refresh: bool = False)
     return notes_index
 
 
-async def find_notes_by_names(api: ObsidianAPI, note_names: List[str]) -> Dict[str, Optional[str]]:
+async def find_notes_by_names(vault, note_names: List[str]) -> Dict[str, Optional[str]]:
     """
     Find multiple notes by their names efficiently.
     
     Returns a dict mapping requested names to their full paths (or None if not found).
     """
     # Build or get cached index
-    notes_index = await build_vault_notes_index(api)
+    notes_index = await build_vault_notes_index(vault)
     
     results = {}
     for name in note_names:
@@ -94,7 +86,7 @@ async def find_notes_by_names(api: ObsidianAPI, note_names: List[str]) -> Dict[s
     return results
 
 
-async def check_links_validity_batch(api: ObsidianAPI, links: List[Dict[str, str]]) -> List[Dict[str, any]]:
+async def check_links_validity_batch(vault, links: List[Dict[str, str]]) -> List[Dict[str, any]]:
     """
     Check validity of multiple links in batch for performance.
     """
@@ -102,7 +94,7 @@ async def check_links_validity_batch(api: ObsidianAPI, links: List[Dict[str, str
     unique_paths = list(set(link['path'] for link in links))
     
     # Find all notes in one go
-    found_paths = await find_notes_by_names(api, unique_paths)
+    found_paths = await find_notes_by_names(vault, unique_paths)
     
     # Update links with validity info
     results = []
@@ -244,15 +236,16 @@ async def get_backlinks(
     if ctx:
         ctx.info(f"Finding backlinks to: {path}")
     
-    api = ObsidianAPI()
+    vault = get_vault()
     
     # Verify the target note exists
-    note = await api.get_note(path)
-    if not note:
+    try:
+        note = await vault.read_note(path)
+    except FileNotFoundError:
         raise FileNotFoundError(f"Note not found: {path}")
     
     # Build notes index
-    notes_index = await build_vault_notes_index(api)
+    notes_index = await build_vault_notes_index(vault)
     all_note_paths = list(set(notes_index.values()))  # Use set to get unique paths
     
     # Create variations of the target path to match against
@@ -282,9 +275,7 @@ async def get_backlinks(
             return []
         
         try:
-            note = await api.get_note(note_path)
-            if not note:
-                return []
+            note = await vault.read_note(note_path)
             
             content = note.content
             note_backlinks = []
@@ -346,10 +337,18 @@ async def get_backlinks(
     if ctx:
         ctx.info(f"Found {len(backlinks)} backlinks")
     
+    # Return standardized analysis results structure
     return {
-        'target_note': path,
-        'backlink_count': len(backlinks),
-        'backlinks': backlinks
+        'findings': backlinks,
+        'summary': {
+            'backlink_count': len(backlinks),
+            'sources': len(set(bl['source_path'] for bl in backlinks))  # Unique source notes
+        },
+        'target': path,
+        'scope': {
+            'include_context': include_context,
+            'context_length': context_length
+        }
     }
 
 
@@ -402,11 +401,12 @@ async def get_outgoing_links(
     if ctx:
         ctx.info(f"Extracting links from: {path}")
     
-    api = ObsidianAPI()
+    vault = get_vault()
     
     # Read the note content
-    note = await api.get_note(path)
-    if not note:
+    try:
+        note = await vault.read_note(path)
+    except FileNotFoundError:
         raise FileNotFoundError(f"Note not found: {path}")
     
     content = note.content
@@ -418,15 +418,23 @@ async def get_outgoing_links(
     if check_validity:
         if ctx:
             ctx.info(f"Checking validity of {len(links)} links...")
-        links = await check_links_validity_batch(api, links)
+        links = await check_links_validity_batch(vault, links)
     
     if ctx:
         ctx.info(f"Found {len(links)} outgoing links")
     
+    # Return standardized analysis results structure
     return {
-        'source_note': path,
-        'link_count': len(links),
-        'links': links
+        'findings': links,
+        'summary': {
+            'link_count': len(links),
+            'checked_validity': check_validity,
+            'broken_count': len([l for l in links if check_validity and not l.get('exists', True)])
+        },
+        'target': path,
+        'scope': {
+            'check_validity': check_validity
+        }
     }
 
 
@@ -479,7 +487,7 @@ async def find_broken_links(
             scope = "entire vault"
         ctx.info(f"Checking for broken links in {scope}")
     
-    api = ObsidianAPI()
+    vault = get_vault()
     
     # Get notes to check
     notes_to_check = []
@@ -487,7 +495,7 @@ async def find_broken_links(
         notes_to_check = [single_note]
     else:
         # Build index to get all notes
-        notes_index = await build_vault_notes_index(api)
+        notes_index = await build_vault_notes_index(vault)
         all_notes = list(set(notes_index.values()))  # Get unique paths
         
         if directory:
@@ -506,9 +514,7 @@ async def find_broken_links(
     async def get_note_links(note_path: str) -> Tuple[str, List[dict]]:
         """Get all links from a note."""
         try:
-            note = await api.get_note(note_path)
-            if not note:
-                return note_path, []
+            note = await vault.read_note(note_path)
             return note_path, extract_links_from_content(note.content)
         except Exception:
             return note_path, []
@@ -532,7 +538,7 @@ async def find_broken_links(
         ctx.info(f"Checking validity of {len(all_link_paths)} unique links...")
     
     # Check which links exist - in one batch!
-    found_paths = await find_notes_by_names(api, list(all_link_paths))
+    found_paths = await find_notes_by_names(vault, list(all_link_paths))
     
     # Find broken links
     broken_links = []
@@ -556,18 +562,17 @@ async def find_broken_links(
     # Sort broken links by source path
     broken_links.sort(key=lambda x: x['source_path'])
     
-    result = {
-        'broken_link_count': len(broken_links),
-        'affected_notes': len(affected_notes_set),
-        'broken_links': broken_links
+    # Return standardized analysis results structure
+    return {
+        'findings': broken_links,
+        'summary': {
+            'broken_link_count': len(broken_links),
+            'affected_notes': len(affected_notes_set),
+            'notes_checked': len(notes_to_check)
+        },
+        'target': single_note if single_note else directory or 'vault',
+        'scope': {
+            'type': 'single_note' if single_note else 'directory' if directory else 'vault',
+            'path': single_note if single_note else directory if directory else '/'
+        }
     }
-    
-    # Add context about what was checked
-    if single_note:
-        result['checked'] = 'single_note'
-        result['note'] = single_note
-    else:
-        result['checked'] = 'directory'
-        result['directory'] = directory or '/'
-    
-    return result

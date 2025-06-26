@@ -1,19 +1,27 @@
 """Note management tools for Obsidian MCP server."""
 
-from typing import Optional
+import asyncio
+import re
+from typing import Optional, List, Dict, Any
 from fastmcp import Context
-from ..utils import ObsidianAPI, validate_note_path, sanitize_path
+from ..utils.filesystem import get_vault
+from ..utils import validate_note_path, sanitize_path
 from ..utils.validation import validate_content
 from ..models import Note
 from ..constants import ERROR_MESSAGES
 
 
-async def read_note(path: str, ctx: Optional[Context] = None) -> dict:
+async def read_note(
+    path: str, 
+    ctx: Optional[Context] = None
+) -> dict:
     """
     Read the content and metadata of a specific note.
     
     Use this tool when you need to retrieve the full content of a note
     from the Obsidian vault. The path should be relative to the vault root.
+    
+    To view images embedded in a note, use the view_note_images tool.
     
     Args:
         path: Path to the note relative to vault root (e.g., "Daily/2024-01-15.md")
@@ -23,10 +31,10 @@ async def read_note(path: str, ctx: Optional[Context] = None) -> dict:
         Dictionary containing the note content and metadata
         
     Example:
-        >>> await read_note("Projects/My Project.md", ctx)
+        >>> await read_note("Projects/My Project.md", ctx=ctx)
         {
             "path": "Projects/My Project.md",
-            "content": "# My Project\n\nProject details...",
+            "content": "# My Project\n\n![diagram](attachments/diagram.png)\n\nProject details...",
             "metadata": {
                 "tags": ["project", "active"],
                 "created": "2024-01-15T10:00:00Z",
@@ -45,17 +53,122 @@ async def read_note(path: str, ctx: Optional[Context] = None) -> dict:
     if ctx:
         ctx.info(f"Reading note: {path}")
     
-    api = ObsidianAPI()
-    note = await api.get_note(path)
-    
-    if not note:
+    vault = get_vault()
+    try:
+        note = await vault.read_note(path)
+    except FileNotFoundError:
         raise FileNotFoundError(ERROR_MESSAGES["note_not_found"].format(path=path))
     
+    # Return standardized CRUD success structure
     return {
+        "success": True,
         "path": note.path,
-        "content": note.content,
-        "metadata": note.metadata.model_dump(exclude_none=True)
+        "operation": "read",
+        "details": {
+            "content": note.content,
+            "metadata": note.metadata.model_dump(exclude_none=True)
+        }
     }
+
+
+async def _search_and_load_image(
+    image_ref: str,
+    vault,
+    ctx: Optional[Context] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Search for and load a single image.
+    
+    Args:
+        image_ref: Image reference (path or filename)
+        vault: ObsidianVault instance
+        ctx: Optional context for logging
+        
+    Returns:
+        Image data dict or None if not found
+    """
+    try:
+        if ctx:
+            ctx.info(f"Loading embedded image: {image_ref}")
+        
+        # Try to read the image directly (with resizing for embedded images)
+        try:
+            image_data = await vault.read_image(image_ref, max_width=800)
+        except FileNotFoundError:
+            # If not found at direct path, search for it
+            if ctx:
+                ctx.info(f"Image not found at direct path, searching for: {image_ref}")
+            
+            # Extract just the filename
+            filename = image_ref.split('/')[-1]
+            
+            # Use vault's find_image method
+            found_path = await vault.find_image(filename)
+            if found_path:
+                if ctx:
+                    ctx.info(f"Found image at: {found_path}")
+                image_data = await vault.read_image(found_path, max_width=800)
+            else:
+                image_data = None
+        
+        if image_data:
+            return {
+                "path": image_data["path"],
+                "content": image_data["content"],
+                "mime_type": image_data["mime_type"]
+            }
+        elif ctx:
+            ctx.info(f"Could not find image anywhere: {image_ref}")
+            
+    except Exception as e:
+        # Log error but return None
+        if ctx:
+            ctx.info(f"Failed to load image {image_ref}: {str(e)}")
+    
+    return None
+
+
+async def _extract_and_load_images(
+    content: str, 
+    vault,
+    ctx: Optional[Context] = None
+) -> List[Dict[str, Any]]:
+    """
+    Extract image references from markdown content and load them concurrently.
+    
+    Supports both Obsidian wiki-style (![[image.png]]) and standard markdown (![alt](image.png)) formats.
+    """
+    # Pattern for wiki-style embeds: ![[image.png]]
+    wiki_pattern = r'!\[\[([^]]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp|ico))\]\]'
+    # Pattern for standard markdown: ![alt text](image.png)
+    markdown_pattern = r'!\[[^\]]*\]\(([^)]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp|ico))\)'
+    
+    # Find all image references
+    image_paths = set()
+    
+    for match in re.finditer(wiki_pattern, content, re.IGNORECASE):
+        image_paths.add(match.group(1))
+    
+    for match in re.finditer(markdown_pattern, content, re.IGNORECASE):
+        image_paths.add(match.group(1))
+    
+    # Load all images concurrently for better performance
+    if not image_paths:
+        return []
+    
+    # Create tasks for all images
+    tasks = [_search_and_load_image(image_ref, vault, ctx) for image_ref in image_paths]
+    
+    # Execute all tasks concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Filter out None results and exceptions
+    images = []
+    for result in results:
+        if result and not isinstance(result, Exception):
+            images.append(result)
+    
+    return images
 
 
 async def create_note(
@@ -108,20 +221,30 @@ async def create_note(
     if ctx:
         ctx.info(f"Creating note: {path}")
     
-    api = ObsidianAPI()
+    vault = get_vault()
     
-    # Check if note exists
-    existing_note = await api.get_note(path)
-    if existing_note and not overwrite:
-        raise FileExistsError(ERROR_MESSAGES["overwrite_protection"].format(path=path))
+    # Create the note
+    try:
+        note = await vault.write_note(path, content, overwrite=overwrite)
+        created = True
+    except FileExistsError:
+        if not overwrite:
+            raise FileExistsError(ERROR_MESSAGES["overwrite_protection"].format(path=path))
+        # If we get here, overwrite is True but file exists - this shouldn't happen
+        # with our write_note implementation, but handle it just in case
+        note = await vault.write_note(path, content, overwrite=True)
+        created = False
     
-    # Create or update the note
-    note = await api.create_note(path, content)
-    
+    # Return standardized CRUD success structure
     return {
+        "success": True,
         "path": note.path,
-        "created": existing_note is None,
-        "metadata": note.metadata.model_dump(exclude_none=True)
+        "operation": "created" if created else "overwritten",
+        "details": {
+            "created": created,
+            "overwritten": not created,
+            "metadata": note.metadata.model_dump(exclude_none=True)
+        }
     }
 
 
@@ -175,20 +298,30 @@ async def update_note(
     if ctx:
         ctx.info(f"Updating note: {path}")
     
-    api = ObsidianAPI()
+    vault = get_vault()
     
-    # Check if note exists
-    existing_note = await api.get_note(path)
+    # Try to read existing note
+    try:
+        existing_note = await vault.read_note(path)
+        note_exists = True
+    except FileNotFoundError:
+        note_exists = False
+        existing_note = None
     
-    if not existing_note:
+    if not note_exists:
         if create_if_not_exists:
             # Create the note
-            note = await api.create_note(path, content)
+            note = await vault.write_note(path, content, overwrite=False)
+            # Return standardized CRUD success structure
             return {
+                "success": True,
                 "path": note.path,
-                "updated": False,
-                "created": True,
-                "metadata": note.metadata.model_dump(exclude_none=True)
+                "operation": "created",
+                "details": {
+                    "updated": False,
+                    "created": True,
+                    "metadata": note.metadata.model_dump(exclude_none=True)
+                }
             }
         else:
             raise FileNotFoundError(ERROR_MESSAGES["note_not_found"].format(path=path))
@@ -204,14 +337,19 @@ async def update_note(
         raise ValueError(f"Invalid merge_strategy: {merge_strategy}. Must be 'replace' or 'append'")
     
     # Update existing note
-    note = await api.update_note(path, final_content)
+    note = await vault.write_note(path, final_content, overwrite=True)
     
+    # Return standardized CRUD success structure
     return {
+        "success": True,
         "path": note.path,
-        "updated": True,
-        "created": False,
-        "metadata": note.metadata.model_dump(exclude_none=True),
-        "merge_strategy": merge_strategy
+        "operation": "updated",
+        "details": {
+            "updated": True,
+            "created": False,
+            "merge_strategy": merge_strategy,
+            "metadata": note.metadata.model_dump(exclude_none=True)
+        }
     }
 
 
@@ -244,13 +382,20 @@ async def delete_note(path: str, ctx: Optional[Context] = None) -> dict:
     if ctx:
         ctx.info(f"Deleting note: {path}")
     
-    api = ObsidianAPI()
-    deleted = await api.delete_note(path)
+    vault = get_vault()
     
-    if not deleted:
+    try:
+        await vault.delete_note(path)
+        deleted = True
+    except FileNotFoundError:
         raise FileNotFoundError(ERROR_MESSAGES["note_not_found"].format(path=path))
     
+    # Return standardized CRUD success structure
     return {
+        "success": True,
         "path": path,
-        "deleted": True
+        "operation": "deleted",
+        "details": {
+            "deleted": True
+        }
     }
