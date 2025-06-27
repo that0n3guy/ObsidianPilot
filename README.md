@@ -1,5 +1,35 @@
 ## ObsidianPilot - Enhanced MCP Server
 
+## 🚀 Quick Start (Windows)
+
+1. **Install:**
+   ```cmd
+   pipx install ObsidianPilot
+   ```
+
+2. **Configure Claude Desktop:**
+   - Open: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Add this configuration:
+   ```json
+   {
+     "mcpServers": {
+       "obsidian": {
+         "command": "ObsidianPilot",
+         "args": [],
+         "env": {
+           "OBSIDIAN_VAULT_PATH": "C:\\Users\\YourName\\Documents\\MyVault"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Update the vault path** to your actual Obsidian vault location
+
+4. **Restart Claude Desktop** - ObsidianPilot is now ready!
+
+---
+
 ### 🎉 Version 2.0 Released!
 
 **Major improvements in v2.0:**
@@ -8,7 +38,7 @@
 -   🖼️ **Image support** - View and analyze images from your vault
 -   🔍 **Powerful regex search** - Find complex patterns in your notes
 -   🗂️ **Property search** - Query by frontmatter properties (status, priority, etc.)
--   🚀 **One-command setup** - Auto-configure Claude Desktop with `uvx --from ObsidianPilot ObsidianPilot-configure --vault-path /path/to/your/vault`
+-   🚀 **Simple setup** - Quick Windows configuration guide included
 -   🔄 **Direct filesystem access** - No plugins required, works offline
 -   📦 **90% less memory usage** - Efficient streaming architecture
 
@@ -41,22 +71,14 @@ ObsidianPilot is an enhanced Model Context Protocol (MCP) server that enables AI
 
 ### Installation
 
-#### Quick Install with Auto-Configuration (Claude Desktop)
+#### For Other Platforms (macOS, Linux)
 
-**New in v2.0!** Configure Claude Desktop automatically with one command:
+**Install ObsidianPilot:**
+```bash
+uvx ObsidianPilot
+```
 
-# Install and configure in one step
-uvx ObsidianPilot --vault-path /path/to/your/vault
-
-This command will:
-
--   ✅ Automatically find your Claude Desktop config
--   ✅ Add the Obsidian MCP server
--   ✅ Migrate old REST API configs to v2.0
--   ✅ Create a backup of your existing config
--   ✅ Work on macOS, Windows, and Linux
-
-#### Manual Configuration
+#### Configuration for All Platforms
 
 1.  **Locate your Obsidian vault:**
     -   Find the path to your Obsidian vault on your filesystem
