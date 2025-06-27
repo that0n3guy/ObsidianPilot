@@ -5,6 +5,8 @@ from .note_management import (
     create_note,
     update_note,
     delete_note,
+    edit_note_section,
+    edit_note_content,
 )
 from .search_discovery import (
     search_notes,
@@ -42,6 +44,8 @@ __all__ = [
     "create_note", 
     "update_note",
     "delete_note",
+    "edit_note_section",
+    "edit_note_content",
     # Search and discovery
     "search_notes",
     "search_by_date",

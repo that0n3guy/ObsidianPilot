@@ -20,6 +20,8 @@ from .tools import (
     create_note,
     update_note,
     delete_note,
+    edit_note_section,
+    edit_note_content,
     search_notes,
     search_by_date,
     search_by_regex,
@@ -209,6 +211,131 @@ async def delete_note_tool(path: str, ctx=None):
         raise ToolError(f"Failed to delete note: {str(e)}")
 
 @mcp.tool()
+async def edit_note_section_tool(
+    path: Annotated[str, Field(
+        description="Path to the note to edit",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Daily/2024-01-15.md", "Projects/Website.md", "Notes/Research.md"]
+    )],
+    section_identifier: Annotated[str, Field(
+        description="Markdown heading that identifies the section (e.g., '## Tasks', '### Status'). Case-insensitive matching.",
+        min_length=1,
+        max_length=100,
+        examples=["## Tasks", "### Current Status", "# Main Topic", "#### Details"]
+    )],
+    content: Annotated[str, Field(
+        description="Content to insert, replace, or append to the section",
+        min_length=1,
+        max_length=50000
+    )],
+    operation: Annotated[Literal["insert_after", "insert_before", "replace_section", "append_to_section", "edit_heading"], Field(
+        description="How to edit the section: insert_after (add content after heading), insert_before (add before heading), replace_section (replace entire section), append_to_section (add to end of section), edit_heading (change just the heading text)",
+        default="insert_after"
+    )] = "insert_after",
+    create_if_missing: Annotated[bool, Field(
+        description="Create the section if it doesn't exist",
+        default=False
+    )] = False,
+    ctx=None
+):
+    """
+    Edit a specific section of a note identified by a markdown heading.
+    
+    This tool enables token-efficient editing by targeting specific sections
+    instead of rewriting entire notes. It preserves frontmatter and handles
+    various section editing operations.
+    
+    When to use:
+    - Adding tasks to a specific section without rewriting the whole note
+    - Updating status sections in project notes
+    - Building up notes incrementally by section
+    - Inserting content at precise locations
+    - Changing section headings while preserving content
+    
+    When NOT to use:
+    - Making changes across multiple sections (use update_note instead)
+    - Replacing entire note content (use update_note instead)
+    - Simple text replacements (use edit_note_content instead)
+    
+    Args:
+        path: Path to the note to edit
+        section_identifier: Markdown heading to find (case-insensitive)
+        content: Content to insert, replace, or append
+        operation: Type of edit operation to perform
+        create_if_missing: Create section if it doesn't exist
+        
+    Returns:
+        Edit status with section details and operation performed
+    """
+    try:
+        return await edit_note_section(path, section_identifier, content, operation, create_if_missing, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to edit note section: {str(e)}")
+
+@mcp.tool()
+async def edit_note_content_tool(
+    path: Annotated[str, Field(
+        description="Path to the note to edit",
+        pattern=r"^[^/].*\.md$",
+        min_length=1,
+        max_length=255,
+        examples=["Daily/2024-01-15.md", "Projects/Website.md", "Notes/Research.md"]
+    )],
+    search_text: Annotated[str, Field(
+        description="Exact text to search for and replace",
+        min_length=1,
+        max_length=10000
+    )],
+    replacement_text: Annotated[str, Field(
+        description="Text to replace the search_text with",
+        max_length=10000
+    )],
+    occurrence: Annotated[Literal["first", "all"], Field(
+        description="Replace 'first' occurrence only or 'all' occurrences",
+        default="first"
+    )] = "first",
+    ctx=None
+):
+    """
+    Edit specific text content in a note using precise search and replace.
+    
+    This tool enables token-efficient editing by replacing specific text
+    without rewriting entire notes. It's ideal for updating values, fixing
+    typos, or making targeted changes to any part of the note.
+    
+    When to use:
+    - Updating specific values or references
+    - Fixing typos or correcting text
+    - Modifying frontmatter properties
+    - Changing URLs or links
+    - Updating dates or numbers
+    
+    When NOT to use:
+    - Making structural changes to sections (use edit_note_section instead)
+    - Adding large blocks of content (use edit_note_section or update_note)
+    - When exact text match is uncertain (read note first to verify)
+    
+    Args:
+        path: Path to the note to edit
+        search_text: Exact text to find
+        replacement_text: Text to replace with
+        occurrence: Replace first or all occurrences
+        
+    Returns:
+        Edit status with replacement details
+    """
+    try:
+        return await edit_note_content(path, search_text, replacement_text, occurrence, ctx)
+    except (ValueError, FileNotFoundError) as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to edit note content: {str(e)}")
+
+@mcp.tool()
 async def search_notes_tool(
     query: Annotated[str, Field(
         description="What to search for in your notes. Use plain text or special prefixes: 'tag:' for tags (supports hierarchical tags), 'path:' for folders/filenames, 'property:' for metadata.",
@@ -340,11 +467,11 @@ async def search_by_regex_tool(
     - Searching by tags or properties (use dedicated tools)
     
     Common patterns:
-    - URLs: r"https?://[^\s]+"
-    - Email: r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-    - TODO comments: r"(TODO|FIXME)\s*:.*"
-    - Markdown headers: r"^#{1,6}\s+.*"
-    - Code blocks: r"```\w*\n[\s\S]*?```"
+    - URLs: r"https?://[^\\s]+"
+    - Email: r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    - TODO comments: r"(TODO|FIXME)\\s*:.*"
+    - Markdown headers: r"^#{1,6}\\s+.*"
+    - Code blocks: r"```\\w*\\n[\\s\\S]*?```"
     
     Returns:
         Notes containing regex matches with match details and context

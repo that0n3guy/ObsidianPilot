@@ -199,13 +199,36 @@ Edit a specific section of a note identified by a markdown heading.
 -   `operation` (default: `"insert_after"`): How to edit the section
     -   `"insert_after"`: Add content after the section heading
     -   `"insert_before"`: Add content before the section heading
-    -   `"replace"`: Replace entire section including heading
+    -   `"replace_section"`: Replace entire section including heading
     -   `"append_to_section"`: Add content at the end of the section
+    -   `"edit_heading"`: Change just the heading text while preserving section content
 -   `create_if_missing` (default: `false`): Create section if it doesn't exist
 
 **Example usage:**
 
-\# Add tasks to a specific section await edit\_note\_section( "Daily/2024-01-15.md", "\## Tasks", "\- \[ \] Review PR\\n\- \[ \] Update docs", operation\="append\_to\_section" ) \# Update a status section await edit\_note\_section( "Projects/Website.md", "\### Current Status", "\### Current Status\\n\\nPhase 2 completed!", operation\="replace" )
+# Add tasks to a specific section
+await edit_note_section(
+    "Daily/2024-01-15.md",
+    "## Tasks", 
+    "- [ ] Review PR\n- [ ] Update docs",
+    operation="append_to_section"
+)
+
+# Update a status section
+await edit_note_section(
+    "Projects/Website.md",
+    "### Current Status",
+    "### Current Status\n\nPhase 2 completed!",
+    operation="replace_section"
+)
+
+# Change just a heading
+await edit_note_section(
+    "Projects/Website.md", 
+    "## Old Heading",
+    "## New Heading",
+    operation="edit_heading"
+)
 
 **Use cases:**
 
@@ -213,6 +236,49 @@ Edit a specific section of a note identified by a markdown heading.
 -   Updating status sections in project notes
 -   Building up notes incrementally by section
 -   Inserting content at precise locations
+
+##### `edit_note_content`
+
+Edit specific text content in a note using precise search and replace.
+
+**Parameters:**
+
+-   `path`: Path to the note to edit
+-   `search_text`: Exact text to search for and replace
+-   `replacement_text`: Text to replace the search_text with
+-   `occurrence` (default: `"first"`): Replace "first" occurrence only or "all" occurrences
+
+**Example usage:**
+
+# Update a specific value
+await edit_note_content(
+    "Projects/Website.md",
+    "Status: In Progress",
+    "Status: Completed"
+)
+
+# Fix a typo throughout the document
+await edit_note_content(
+    "Notes/Research.md",
+    "recieve",
+    "receive",
+    occurrence="all"
+)
+
+# Update frontmatter property
+await edit_note_content(
+    "Daily/2024-01-15.md",
+    "priority: low",
+    "priority: high"
+)
+
+**Use cases:**
+
+-   Updating specific values or references
+-   Fixing typos or correcting text
+-   Modifying frontmatter properties
+-   Changing URLs or links
+-   Updating dates or numbers
 
 ##### `delete_note`
 
@@ -762,13 +828,17 @@ Invalid date\_type: 'invalid'. Must be either 'created' or 'modified'. Use 'crea
 
 ### Changelog
 
-#### v2.0.3 (2025-01-24)
+#### v2.0.3 (2025-06-27)
 
--   ✏️ **Section-based editing** - New `edit_note_section` tool for precise content insertion and updates
--   🎯 **Four edit operations** - Insert before/after headings, replace sections, or append to section ends
+-   ✏️ **Token-efficient section editing** - New `edit_note_section` tool for precise content insertion and updates
+-   🎯 **Five edit operations** - Insert before/after headings, replace sections, append to sections, or edit headings only
 -   📍 **Smart section detection** - Case-insensitive markdown heading matching with hierarchy support
 -   🔧 **Create missing sections** - Optionally create sections if they don't exist
 -   📝 **Preserve note structure** - Edit specific parts without rewriting entire notes
+-   🔍 **Precise text replacement** - New `edit_note_content` tool for exact text search and replace
+-   🛡️ **Frontmatter preservation** - Automatically detects and maintains YAML frontmatter during all edits
+-   🐛 **FastMCP compatibility** - Fixed deprecated import warnings and updated dependencies
+-   📚 **Windows setup guide** - Comprehensive installation instructions for Windows environments
 
 #### v2.0.2 (2025-01-24)
 

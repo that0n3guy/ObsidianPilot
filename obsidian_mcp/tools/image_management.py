@@ -2,7 +2,8 @@
 
 import base64
 from typing import Optional, Union, Dict, Any
-from fastmcp import Context, Image
+from fastmcp import Context
+from fastmcp.utilities.types import Image
 from ..utils.filesystem import get_vault
 from ..utils import validate_note_path, sanitize_path
 from ..constants import ERROR_MESSAGES

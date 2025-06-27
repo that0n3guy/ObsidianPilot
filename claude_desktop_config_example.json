@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "python",
+      "args": ["-m", "obsidian_mcp.server"],
+      "cwd": "C:\\Users\\jimmy\\dev\\obsidian-mcp",
+      "env": {
+        "PYTHONPATH": "C:\\Users\\jimmy\\dev\\obsidian-mcp",
+        "OBSIDIAN_VAULT_PATH": "C:\\Users\\jimmy\\Documents\\MyVault"
+      }
+    }
+  }
+}
