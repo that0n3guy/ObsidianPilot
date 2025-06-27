@@ -1,7 +1,7 @@
 """Final test to confirm search_by_date is available."""
 
 import asyncio
-from obsidian_mcp.server import mcp
+from obsidianpilot.server import mcp
 
 async def main():
     print("=== MCP Server Tools Check ===\n")

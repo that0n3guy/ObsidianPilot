@@ -14,7 +14,7 @@
    {
      "mcpServers": {
        "obsidian": {
-         "command": "ObsidianPilot",
+         "command": "obsidianpilot",
          "args": [],
          "env": {
            "OBSIDIAN_VAULT_PATH": "C:\\Users\\YourName\\Documents\\MyVault"
@@ -111,7 +111,7 @@ uvx ObsidianPilot
 
 That's it! The server will now be available in your AI tool with access to your Obsidian vault.
 
-> **Note:** This uses `uvx` which automatically downloads and runs the server in an isolated environment. Most users won't need to install anything else. If you don't have `uv` installed, you can also use `pipx install ObsidianPilot` and change the command to `"ObsidianPilot"` in the config.
+> **Note:** This uses `uvx` which automatically downloads and runs the server in an isolated environment. Most users won't need to install anything else. If you don't have `uv` installed, you can also use `pipx install ObsidianPilot` and change the command to `"obsidianpilot"` in the config.
 
 ##### Try It Out
 
@@ -774,7 +774,7 @@ Invalid date\_type: 'invalid'. Must be either 'created' or 'modified'. Use 'crea
 #### "Module not found" error
 
 -   Ensure your virtual environment is activated
--   Run from the project root: `python -m obsidian_mcp.server`
+-   Run from the project root: `python -m obsidianpilot.server`
 -   Verify all dependencies are installed: `pip install -r requirements.txt`
 
 #### Empty results when listing notes

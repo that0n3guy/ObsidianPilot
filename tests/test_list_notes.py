@@ -8,8 +8,8 @@ import sys
 # Add project to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from obsidian_mcp.utils.obsidian_api import ObsidianAPI
-from obsidian_mcp.tools.search_discovery import list_notes
+from obsidianpilot.utils.obsidian_api import ObsidianAPI
+from obsidianpilot.tools.search_discovery import list_notes
 
 async def test_api_directly():
     """Test the API directly."""

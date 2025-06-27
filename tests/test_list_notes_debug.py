@@ -9,9 +9,9 @@ from typing import List, Dict, Any
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from obsidian_mcp.utils import ObsidianAPI
-from obsidian_mcp.models import VaultItem
-from obsidian_mcp.tools.search_discovery import list_notes
+from obsidianpilot.utils import ObsidianAPI
+from obsidianpilot.models import VaultItem
+from obsidianpilot.tools.search_discovery import list_notes
 
 
 async def debug_vault_structure():

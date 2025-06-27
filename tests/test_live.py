@@ -15,7 +15,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from obsidian_mcp.tools import (
+from obsidianpilot.tools import (
     read_note, create_note, update_note, delete_note,
     search_notes, list_notes, add_tags, remove_tags, get_note_info
 )
@@ -32,7 +32,7 @@ async def test_connection():
     print("\n1️⃣  Testing connection...")
     
     try:
-        from obsidian_mcp.utils import ObsidianAPI
+        from obsidianpilot.utils import ObsidianAPI
         api = ObsidianAPI()
         structure = await api.get_vault_structure()
         print(f"✅ Connected! Found {len(structure)} items in vault")

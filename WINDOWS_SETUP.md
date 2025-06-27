@@ -33,6 +33,19 @@ pip install -e .
 }
 ```
 
+
+You may need to include the full path that `pip install -e .` gives you:
+
+```
+    "obsidian-peter": { 
+      "command": "C:\\Users\\jimmy\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\Scripts\\obsidian-mcp.exe", 
+      "env": { 
+        "OBSIDIAN_VAULT_PATH": "C:\\Users\\jimmy\\obsidian\\Main"
+      }
+    },
+```
+
+
 ### Option B: Direct Python Execution
 ```json
 {

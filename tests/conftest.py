@@ -5,7 +5,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add parent directory to path so we can import obsidian_mcp modules
+# Add parent directory to path so we can import obsidianpilot modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 

@@ -43,10 +43,10 @@ Repository = "https://github.com/that0n3guy/ObsidianPilot"
 Issues = "https://github.com/that0n3guy/ObsidianPilot/issues"
 
 [project.scripts]
-ObsidianPilot = "obsidian_mcp.server:main"
+obsidianpilot = "obsidianpilot.server:main"
 
 [tool.setuptools]
-packages = ["obsidian_mcp", "obsidian_mcp.tools", "obsidian_mcp.utils", "obsidian_mcp.models"]
+packages = ["obsidianpilot", "obsidianpilot.tools", "obsidianpilot.utils", "obsidianpilot.models"]
 include-package-data = true
 
 [tool.setuptools.package-data]

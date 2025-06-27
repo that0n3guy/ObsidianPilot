@@ -1,7 +1,7 @@
 """Test link validity checking."""
 
 import asyncio
-from obsidian_mcp.tools.link_management import get_outgoing_links, find_broken_links
+from obsidianpilot.tools.link_management import get_outgoing_links, find_broken_links
 
 async def test_daily_note_links():
     """Test link validity in today's daily note."""

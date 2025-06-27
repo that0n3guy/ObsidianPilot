@@ -33,13 +33,13 @@ def test_imports():
     """Test that all modules can be imported."""
     print("\n2. Testing imports...")
     try:
-        import obsidian_mcp.server
+        import obsidianpilot.server
         print("   ✅ src.server imports successfully")
         
-        from obsidian_mcp.utils import ObsidianAPI
+        from obsidianpilot.utils import ObsidianAPI
         print("   ✅ ObsidianAPI imports successfully")
         
-        from obsidian_mcp.tools import read_note, create_note
+        from obsidianpilot.tools import read_note, create_note
         print("   ✅ Tool imports successful")
         
         return True
@@ -51,7 +51,7 @@ async def test_obsidian_connection():
     """Test connection to Obsidian REST API."""
     print("\n3. Testing Obsidian connection...")
     try:
-        from obsidian_mcp.utils import ObsidianAPI
+        from obsidianpilot.utils import ObsidianAPI
         api = ObsidianAPI()
         
         # Try to get vault structure

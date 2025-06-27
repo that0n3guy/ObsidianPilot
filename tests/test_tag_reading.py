@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from obsidian_mcp.tools import read_note, get_note_info, search_notes
+from obsidianpilot.tools import read_note, get_note_info, search_notes
 
 async def test_tag_reading():
     """Test reading tags from today's daily note."""

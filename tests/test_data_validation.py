@@ -10,9 +10,9 @@ from datetime import datetime
 # Add project to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from obsidian_mcp.tools.note_management import read_note, create_note, update_note, delete_note
-from obsidian_mcp.tools.search_discovery import list_notes
-from obsidian_mcp.tools.organization import add_tags, get_note_info
+from obsidianpilot.tools.note_management import read_note, create_note, update_note, delete_note
+from obsidianpilot.tools.search_discovery import list_notes
+from obsidianpilot.tools.organization import add_tags, get_note_info
 
 
 async def test_return_values():

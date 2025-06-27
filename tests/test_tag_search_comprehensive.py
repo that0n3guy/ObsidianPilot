@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from obsidian_mcp.tools import search_notes, list_tags
+from obsidianpilot.tools import search_notes, list_tags
 
 async def test_tag_search():
     """Test tag search functionality."""

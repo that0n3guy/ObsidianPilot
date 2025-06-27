@@ -4,14 +4,14 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
-from obsidian_mcp.tools.note_management import (
+from obsidianpilot.tools.note_management import (
     edit_note_section,
     edit_note_content,
     _detect_frontmatter,
     _find_section_boundaries,
     _create_section_content
 )
-from obsidian_mcp.utils.filesystem import ObsidianVault
+from obsidianpilot.utils.filesystem import ObsidianVault
 
 
 @pytest.fixture
