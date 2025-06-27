@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that enables AI assistants to interact with Obsidian vaults through direct filesystem access. The server provides tools for reading, creating, searching, and managing notes in Obsidian with blazing-fast performance and token-efficient editing capabilities.
+ObsidianPilot is an enhanced MCP (Model Context Protocol) server that enables AI assistants to interact with Obsidian vaults through direct filesystem access. The server provides tools for reading, creating, searching, and managing notes in Obsidian with blazing-fast performance and token-efficient editing capabilities.
 
 ## Key Architecture
 

@@ -1,4 +1,4 @@
-# Windows Setup Guide (if using this from source) for Enhanced Obsidian MCP
+# Windows Setup Guide for ObsidianPilot
 
 ## Quick Setup Steps
 
@@ -24,7 +24,7 @@ pip install -e .
 {
   "mcpServers": {
     "obsidian": {
-      "command": "obsidian-mcp",
+      "command": "obsidian-pilot",
       "env": {
         "OBSIDIAN_VAULT_PATH": "C:\\path\\to\\your\\obsidian\\vault"
       }
@@ -56,7 +56,7 @@ pip install -e .
   "mcpServers": {
     "obsidian": {
       "command": "uvx",
-      "args": ["--from", "C:\\Users\\jimmy\\dev\\obsidian-mcp", "obsidian-mcp"],
+      "args": ["--from", "C:\\Users\\jimmy\\dev\\obsidian-mcp", "obsidian-pilot"],
       "env": {
         "OBSIDIAN_VAULT_PATH": "C:\\path\\to\\your\\obsidian\\vault"
       }

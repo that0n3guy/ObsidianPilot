@@ -1,4 +1,4 @@
-## Obsidian MCP Server
+## ObsidianPilot - Enhanced MCP Server
 
 ### 🎉 Version 2.0 Released!
 
@@ -8,13 +8,13 @@
 -   🖼️ **Image support** - View and analyze images from your vault
 -   🔍 **Powerful regex search** - Find complex patterns in your notes
 -   🗂️ **Property search** - Query by frontmatter properties (status, priority, etc.)
--   🚀 **One-command setup** - Auto-configure Claude Desktop with `uvx --from obsidian-mcp obsidian-mcp-configure --vault-path /path/to/your/vault`
+-   🚀 **One-command setup** - Auto-configure Claude Desktop with `uvx --from ObsidianPilot ObsidianPilot-configure --vault-path /path/to/your/vault`
 -   🔄 **Direct filesystem access** - No plugins required, works offline
 -   📦 **90% less memory usage** - Efficient streaming architecture
 
 * * *
 
-A Model Context Protocol (MCP) server that enables AI assistants like Claude to interact with your Obsidian vault. This server provides tools for reading, creating, searching, and managing notes in Obsidian through direct filesystem access with blazing-fast performance thanks to intelligent indexing.
+ObsidianPilot is an enhanced Model Context Protocol (MCP) server that enables AI assistants like Claude to interact with your Obsidian vault with powerful token-efficient editing capabilities. This server provides tools for reading, creating, searching, and managing notes in Obsidian through direct filesystem access with blazing-fast performance and intelligent indexing.
 
 ### Features
 
@@ -45,7 +45,8 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
 **New in v2.0!** Configure Claude Desktop automatically with one command:
 
-\# Install and configure in one step uvx --from obsidian-mcp obsidian-mcp-configure --vault-path /path/to/your/vault
+# Install and configure in one step
+uvx ObsidianPilot --vault-path /path/to/your/vault
 
 This command will:
 
@@ -65,14 +66,14 @@ This command will:
     -   macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
     -   Windows: `%APPDATA%\Claude\claude_desktop_config.json`
     
-    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["obsidian-mcp"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
+    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["ObsidianPilot"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
     
     Add to your Cursor settings:
     
     -   Project-specific: `.cursor/mcp.json` in your project directory
     -   Global: `~/.cursor/mcp.json` in your home directory
     
-    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["obsidian-mcp"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
+    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["ObsidianPilot"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
     
     Then: Open Settings → Cursor Settings → Enable MCP
     
@@ -80,7 +81,7 @@ This command will:
     
     -   Location: `~/.codeium/windsurf/mcp_config.json`
     
-    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["obsidian-mcp"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
+    { "mcpServers": { "obsidian": { "command": "uvx", "args": \["ObsidianPilot"\], "env": { "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
     
     Then: Open Windsurf Settings → Advanced Settings → Cascade → Add Server → Refresh
     
@@ -88,7 +89,7 @@ This command will:
 
 That's it! The server will now be available in your AI tool with access to your Obsidian vault.
 
-> **Note:** This uses `uvx` which automatically downloads and runs the server in an isolated environment. Most users won't need to install anything else. If you don't have `uv` installed, you can also use `pipx install obsidian-mcp` and change the command to `"obsidian-mcp"` in the config.
+> **Note:** This uses `uvx` which automatically downloads and runs the server in an isolated environment. Most users won't need to install anything else. If you don't have `uv` installed, you can also use `pipx install ObsidianPilot` and change the command to `"ObsidianPilot"` in the config.
 
 ##### Try It Out
 
@@ -103,11 +104,11 @@ Here are some example prompts to get started:
 
 1.  **Clone the repository:**
     
-    git clone https://github.com/natestrong/obsidian-mcp cd obsidian-mcp
+    git clone https://github.com/natestrong/ObsidianPilot cd ObsidianPilot
     
 2.  **Set up Python environment:**
     
-    \# Using pyenv (recommended) pyenv virtualenv 3.12.9 obsidian-mcp pyenv activate obsidian-mcp \# Or using venv python -m venv venv source venv/bin/activate \# On Windows: venv\\Scripts\\activate
+    \# Using pyenv (recommended) pyenv virtualenv 3.12.9 ObsidianPilot pyenv activate ObsidianPilot \# Or using venv python -m venv venv source venv/bin/activate \# On Windows: venv\\Scripts\\activate
     
 3.  **Install dependencies:**
     
@@ -126,7 +127,7 @@ Here are some example prompts to get started:
     -   macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
     -   Windows: `%APPDATA%\Claude\claude_desktop_config.json`
     
-    { "mcpServers": { "obsidian": { "command": "/path/to/python", "args": \["\-m", "obsidian\_mcp.server"\], "cwd": "/path/to/obsidian-mcp", "env": { "PYTHONPATH": "/path/to/obsidian-mcp", "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
+    { "mcpServers": { "obsidian": { "command": "/path/to/python", "args": \["\-m", "obsidian\_mcp.server"\], "cwd": "/path/to/ObsidianPilot", "env": { "PYTHONPATH": "/path/to/ObsidianPilot", "OBSIDIAN\_VAULT\_PATH": "/path/to/your/obsidian/vault" } } } }
     
 
 ### Project Structure
@@ -707,7 +708,7 @@ Tests create temporary vaults for isolation and don't require a running Obsidian
 
 ### Integration with Claude Desktop
 
-For development installations, see the [Development Installation](https://github.com/natestrong/obsidian-mcp/blob/main/#development-installation) section above.
+For development installations, see the [Development Installation](https://github.com/natestrong/ObsidianPilot/blob/main/#development-installation) section above.
 
 ### Enhanced Error Handling
 
@@ -858,7 +859,7 @@ Invalid date\_type: 'invalid'. Must be either 'created' or 'modified'. Use 'crea
 -   🖼️ **Image support** - View and analyze images from your vault with automatic resizing
 -   🔍 **Regex power search** - Find complex patterns with optimized streaming
 -   🗂️ **Property search** - Query notes by frontmatter properties with advanced operators
--   🎯 **One-command setup** - Auto-configure Claude Desktop with `uvx --from obsidian-mcp obsidian-mcp-configure`
+-   🎯 **One-command setup** - Auto-configure Claude Desktop with `uvx --from ObsidianPilot ObsidianPilot-configure`
 -   📦 **90% less memory usage** - Efficient streaming architecture
 -   🔄 **No plugins required** - Works offline without needing Obsidian to be running
 -   ✨ **Incremental indexing** - Only re-indexes changed files
@@ -947,7 +948,7 @@ To publish a new version to PyPI:
 
 Users can then install and run with:
 
-\# Using uvx (recommended - no installation needed) uvx obsidian-mcp \# Or install globally with pipx pipx install obsidian-mcp obsidian-mcp \# Or with pip pip install obsidian-mcp obsidian-mcp
+\# Using uvx (recommended - no installation needed) uvx ObsidianPilot \# Or install globally with pipx pipx install ObsidianPilot ObsidianPilot \# Or with pip pip install ObsidianPilot ObsidianPilot
 
 ### Configuration
 
@@ -1003,6 +1004,7 @@ MIT License - see LICENSE file for details
 
 ### Acknowledgments
 
+-   **[Nate Strong](https://github.com/natestrong/obsidian-mcp)** for creating the original obsidian-mcp foundation that made ObsidianPilot possible
 -   [Anthropic](https://anthropic.com/) for creating the Model Context Protocol
 -   [Obsidian](https://obsidian.md/) team for the amazing note-taking app
 -   [coddingtonbear](https://github.com/coddingtonbear) for the original Local REST API plugin (no longer required)
