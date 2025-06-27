@@ -25,7 +25,7 @@ pip install build twine
 
 ### 4. Build Package
 ```cmd
-cd C:\Users\polson\dev\obsidian-mcp
+cd C:\Users\polson\dev\ObsidianPilot
 
 # Clean old builds
 rm -rf dist/ build/ *.egg-info/

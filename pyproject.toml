@@ -38,9 +38,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/that0n3guy/obsidian-mcp"
-Repository = "https://github.com/that0n3guy/obsidian-mcp"
-Issues = "https://github.com/that0n3guy/obsidian-mcp/issues"
+Homepage = "https://github.com/that0n3guy/ObsidianPilot"
+Repository = "https://github.com/that0n3guy/ObsidianPilot"
+Issues = "https://github.com/that0n3guy/ObsidianPilot/issues"
 
 [project.scripts]
 obsidian-pilot = "obsidian_mcp.server:main"
