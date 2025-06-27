@@ -104,7 +104,7 @@ Here are some example prompts to get started:
 
 1.  **Clone the repository:**
     
-    git clone https://github.com/natestrong/ObsidianPilot cd ObsidianPilot
+    git clone https://github.com/that0n3guy/ObsidianPilot cd ObsidianPilot
     
 2.  **Set up Python environment:**
     
@@ -708,7 +708,7 @@ Tests create temporary vaults for isolation and don't require a running Obsidian
 
 ### Integration with Claude Desktop
 
-For development installations, see the [Development Installation](https://github.com/natestrong/ObsidianPilot/blob/main/#development-installation) section above.
+For development installations, see the [Development Installation](https://github.com/that0n3guy/ObsidianPilot/blob/main/#development-installation) section above.
 
 ### Enhanced Error Handling
 
