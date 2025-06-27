@@ -2,10 +2,8 @@
 
 ## 🚀 Quick Start (Windows)
 
-1. **Install:**
-   ```cmd
-   pipx install ObsidianPilot
-   ```
+1. **Setup Claude Desktop:**
+Visit this page for details: https://modelcontextprotocol.io/quickstart/user
 
 2. **Configure Claude Desktop:**
    - Open: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -24,9 +22,9 @@
    }
    ```
 
-3. **Update the vault path** to your actual Obsidian vault location
+3. **Update the vault path in the config above** to your actual Obsidian vault location
 
-4. **Restart Claude Desktop** - ObsidianPilot is now ready!
+4. **Restart Claude Desktop** - You must click file->exit... not just close and reopen.   Then ObsidianPilot is now ready!
 
 ---
 
