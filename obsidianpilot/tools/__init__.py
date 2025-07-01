@@ -9,7 +9,6 @@ from .note_management import (
     edit_note_content,
 )
 from .search_discovery import (
-    search_notes,
     search_by_date,
     search_by_regex,
     search_by_property,
@@ -36,6 +35,9 @@ from .image_management import (
 )
 from .view_note_images import (
     view_note_images,
+)
+from .fast_search import (
+    search_notes,
 )
 
 __all__ = [

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ObsidianPilot"
-version = "2.0.5"
+version = "2.1.0"
 description = "ObsidianPilot: Enhanced MCP server with token-efficient editing for Obsidian vaults"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Nate Strong", email = "nathanstrong.fx@gmail.com"}
+    {name = "that0n3guy", email = "none@gmail.com"}
 ]
 keywords = ["obsidian", "mcp", "fastmcp", "llm", "ai", "notes", "knowledge-management", "token-efficient", "pilot"]
 classifiers = [

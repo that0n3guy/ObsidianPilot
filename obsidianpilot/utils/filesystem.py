@@ -795,8 +795,16 @@ class ObsidianVault:
         pattern = "**/*.md" if recursive else "*.md"
         for md_file in search_path.glob(pattern):
             rel_path = md_file.relative_to(self.vault_path)
+            rel_path_str = str(rel_path)
+            
+            # Skip files in .trash and .obsidian folders (handle both Windows \ and Unix / separators)
+            path_normalized = rel_path_str.replace('\\', '/')
+            if (path_normalized.startswith('.trash/') or '/.trash/' in path_normalized or
+                path_normalized.startswith('.obsidian/') or '/.obsidian/' in path_normalized):
+                continue
+                
             notes.append({
-                "path": str(rel_path),
+                "path": rel_path_str,
                 "name": md_file.name
             })
         

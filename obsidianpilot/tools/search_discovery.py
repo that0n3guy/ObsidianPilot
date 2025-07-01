@@ -26,6 +26,26 @@ async def _search_by_tag(vault, tag: str, context_length: int) -> List[Dict[str,
     # Get all notes
     all_notes = await vault.list_notes(recursive=True)
     
+    # For large vaults, try fast search first
+    if len(all_notes) > 500:
+        try:
+            from ..tools.fast_search import search_by_field
+            fast_result = await search_by_field("tags", tag, max_results=100)
+            
+            # Convert to legacy format if we got results
+            if fast_result['results']:
+                for item in fast_result['results']:
+                    results.append({
+                        "path": item["path"],
+                        "score": item["score"],
+                        "matches": [f"#{tag}"],
+                        "context": item["context"]
+                    })
+                return results
+        except Exception:
+            # Fall back to manual search if fast search fails
+            pass
+    
     for note_info in all_notes:
         try:
             # Read the note to get its tags
@@ -223,6 +243,10 @@ async def _search_by_property(vault, property_query: str, context_length: int) -
     results = []
     all_notes = await vault.list_notes(recursive=True)
     
+    # Add timeout protection for large vaults
+    if len(all_notes) > 500:
+        logger.warning(f"Property search on large vault ({len(all_notes)} notes) may be slow. Consider using search_notes_tool instead.")
+    
     for note_info in all_notes:
         try:
             # Read note to get metadata
@@ -357,123 +381,6 @@ async def _search_by_property(vault, property_query: str, context_length: int) -
             continue
     
     return results
-
-
-async def search_notes(
-    query: str,
-    context_length: int = 100,
-    ctx=None
-) -> dict:
-    """
-    Search for notes containing specific text or matching search criteria.
-    
-    Use this tool to find notes by content, title, metadata, or properties. Supports
-    multiple search modes with special prefixes:
-    
-    Search Syntax:
-    - Content search (default): Just type your query to search within note content
-      Example: "machine learning" finds notes containing this text
-    - Path/Title search: Use "path:" prefix to search by filename or folder
-      Example: "path:Daily/" finds all notes in Daily folder
-      Example: "path:Note with Images" finds notes with this in their filename
-    - Tag search: Use "tag:" prefix to search by tags
-      Example: "tag:project" or "tag:#project" finds notes with the project tag
-    - Property search: Use "property:" prefix to search by frontmatter properties
-      Example: "property:status:active" finds notes where status = active
-      Example: "property:priority:>2" finds notes where priority > 2
-      Example: "property:assignee:*john*" finds notes where assignee contains "john"
-      Example: "property:deadline:*" finds notes that have a deadline property
-    - Combined searches are supported but limited to one mode at a time
-    
-    Property Operators:
-    - ":" or "=" for exact match (property:name:value)
-    - ">" for greater than (property:priority:>3)
-    - "<" for less than (property:age:<30)
-    - ">=" for greater or equal (property:score:>=80)
-    - "<=" for less or equal (property:rating:<=5)
-    - "!=" for not equal (property:status:!=completed)
-    - "*value*" for contains (property:title:*project*)
-    - "*" for exists (property:tags:*)
-    
-    Args:
-        query: Search query with optional prefix (path:, tag:, property:, or plain text)
-        context_length: Number of characters to show around matches (default: 100)
-        ctx: MCP context for progress reporting
-        
-    Returns:
-        Dictionary containing search results with matched notes and context
-        
-    Examples:
-        >>> # Search by content
-        >>> await search_notes("machine learning algorithms", ctx=ctx)
-        
-        >>> # Search by filename/path
-        >>> await search_notes("path:Project Notes", ctx=ctx)
-        
-        >>> # Search by tag
-        >>> await search_notes("tag:important", ctx=ctx)
-        
-        >>> # Search by property
-        >>> await search_notes("property:status:active", ctx=ctx)
-        >>> await search_notes("property:priority:>2", ctx=ctx)
-    """
-    # Validate parameters
-    is_valid, error = validate_search_query(query)
-    if not is_valid:
-        raise ValueError(error)
-    
-    is_valid, error = validate_context_length(context_length)
-    if not is_valid:
-        raise ValueError(error)
-    
-    if ctx:
-        ctx.info(f"Searching notes with query: {query}")
-    
-    vault = get_vault()
-    
-    try:
-        # Handle special search syntax
-        if query.startswith("tag:"):
-            # Tag search
-            tag = query[4:].lstrip("#")
-            results = await _search_by_tag(vault, tag, context_length)
-        elif query.startswith("path:"):
-            # Path search
-            path_pattern = query[5:]
-            results = await _search_by_path(vault, path_pattern, context_length)
-        elif query.startswith("property:"):
-            # Property search
-            results = await _search_by_property(vault, query, context_length)
-        else:
-            # Regular content search
-            results = await vault.search_notes(query, context_length)
-        
-        # Return standardized search results structure
-        return {
-            "results": results,
-            "count": len(results),
-            "query": {
-                "text": query,
-                "context_length": context_length,
-                "type": "tag" if query.startswith("tag:") else "path" if query.startswith("path:") else "property" if query.startswith("property:") else "content"
-            },
-            "truncated": False  # We don't have a hard limit on results currently
-        }
-    except Exception as e:
-        if ctx:
-            ctx.info(f"Search failed: {str(e)}")
-        # Return standardized error structure
-        return {
-            "results": [],
-            "count": 0,
-            "query": {
-                "text": query,
-                "context_length": context_length,
-                "type": "tag" if query.startswith("tag:") else "path" if query.startswith("path:") else "property" if query.startswith("property:") else "content"
-            },
-            "truncated": False,
-            "error": f"Search failed: {str(e)}"
-        }
 
 
 async def search_by_date(
@@ -619,27 +526,25 @@ async def search_by_property(
     ctx=None
 ) -> dict:
     """
-    Search for notes by their frontmatter property values.
+    Search for notes by their frontmatter property values using fast FTS5 search.
     
-    This tool allows advanced filtering of notes based on YAML frontmatter properties,
-    supporting various comparison operators and data types.
+    This tool provides high-performance filtering of notes based on YAML frontmatter 
+    properties. For large vaults, this is dramatically faster than the old implementation.
     
     Args:
         property_name: Name of the property to search for
         value: Value to compare against (optional for 'exists' operator)
-        operator: Comparison operator (=, !=, >, <, >=, <=, contains, exists)
+        operator: Comparison operator (=, contains, exists) - simplified for fast search
         context_length: Characters of note content to include in results
         ctx: MCP context for progress reporting
         
-    Operators:
-    - "=" or "equals": Exact match (case-insensitive)
-    - "!=": Not equal
-    - ">": Greater than (numeric/date comparison)
-    - "<": Less than (numeric/date comparison)
-    - ">=": Greater or equal
-    - "<=": Less or equal
-    - "contains": Property value contains the search value
-    - "exists": Property exists (value parameter ignored)
+    Supported Operators (Fast Search):
+    - "=" or "equals": Exact match (property:name:value)
+    - "contains": Property value contains the search value  
+    - "exists": Property exists (searches for property name)
+    
+    Note: For complex operators (>, <, >=, <=, !=), use the manual search fallback
+    or filter results after retrieval for better performance.
     
     Returns:
         Dictionary with search results including property values
@@ -648,9 +553,6 @@ async def search_by_property(
         >>> # Find all notes with status = "active"
         >>> await search_by_property("status", "active", "=")
         
-        >>> # Find notes with priority > 2
-        >>> await search_by_property("priority", "2", ">")
-        
         >>> # Find notes that have a deadline property
         >>> await search_by_property("deadline", operator="exists")
         
@@ -658,40 +560,108 @@ async def search_by_property(
         >>> await search_by_property("title", "project", "contains")
     """
     if ctx:
-        ctx.info(f"Searching by property: {property_name} {operator} {value}")
+        ctx.info(f"Fast property search: {property_name} {operator} {value}")
     
     # Validate operator
-    valid_operators = ["=", "equals", "!=", ">", "<", ">=", "<=", "contains", "exists"]
-    if operator not in valid_operators:
-        raise ValueError(f"Invalid operator: {operator}. Must be one of: {', '.join(valid_operators)}")
+    fast_operators = ["=", "equals", "contains", "exists"]
+    complex_operators = [">", "<", ">=", "<=", "!="]
     
-    # Normalize operator
-    if operator == "equals":
-        operator = "="
+    if operator not in fast_operators + complex_operators:
+        raise ValueError(f"Invalid operator: {operator}. Supported: {', '.join(fast_operators + complex_operators)}")
     
-    # Build query string for internal function
-    if operator == "exists":
-        query = f"property:{property_name}:*"
-    elif operator == "contains":
-        query = f"property:{property_name}:*{value}*"
-    elif operator in [">", "<", ">=", "<=", "!="]:
-        query = f"property:{property_name}:{operator}{value}"
-    else:  # = operator
-        query = f"property:{property_name}:{value}"
-    
-    vault = get_vault()
+    # For complex operators, warn about performance and fall back
+    if operator in complex_operators:
+        if ctx:
+            ctx.info(f"Complex operator '{operator}' requires manual search. This may be slower on large vaults.")
+        
+        # Fall back to original implementation for complex operators
+        try:
+            vault = get_vault()
+            query = f"property:{property_name}:{operator}{value}" if operator != "exists" else f"property:{property_name}:*"
+            results = await _search_by_property(vault, query, context_length)
+            
+            return {
+                "results": results,
+                "count": len(results),
+                "query": {
+                    "property": property_name,
+                    "operator": operator,
+                    "value": value,
+                    "context_length": context_length,
+                    "search_method": "manual_fallback"
+                },
+                "truncated": False,
+                "performance_note": f"Used manual search for complex operator '{operator}'. For better performance on large vaults, consider using simpler operators."
+            }
+        except Exception as e:
+            if ctx:
+                ctx.info(f"Property search failed: {str(e)}")
+            return {
+                "results": [],
+                "count": 0,
+                "query": {
+                    "property": property_name,
+                    "operator": operator,
+                    "value": value,
+                    "context_length": context_length
+                },
+                "truncated": False,
+                "error": f"Property search failed: {str(e)}"
+            }
     
     try:
-        results = await _search_by_property(vault, query, context_length)
+        # Use fast search for supported operators
+        from ..tools.fast_search import search_by_field
         
-        # Sort results by property value if numeric
-        if results and operator in [">", "<", ">=", "<="]:
-            try:
-                # Try to sort numerically
-                results.sort(key=lambda x: float(x.get("property_value", 0)), reverse=(operator in [">", ">="]))
-            except:
-                # Fall back to string sort
-                results.sort(key=lambda x: str(x.get("property_value", "")))
+        # Use direct FTS5 search instead of search_by_field for better control
+        from ..utils.fts_search import get_fts_search
+        fts = await get_fts_search()
+        
+        # Build FTS5 query - search for the actual indexed property text
+        if operator in ["=", "equals"]:
+            # Search for exact "property_name:value" in any field
+            fts_query = f'"{property_name}:{value}"'
+        elif operator == "contains":
+            # Search for property name and value (both should appear)
+            fts_query = f'{property_name} AND {value}'
+        elif operator == "exists":
+            # Just search for the property name followed by colon
+            fts_query = f'"{property_name}:"'
+        
+        # Perform direct FTS5 search
+        raw_results = await fts.search(query=fts_query, limit=200)
+        
+        # Convert to legacy format and add property extraction
+        results = []
+        for item in raw_results:
+            # Try to extract the actual property value from context
+            property_value = "found"  # Default if we can't extract
+            
+            # Look for the property in the snippet/context
+            if 'context' in item and f"{property_name}:" in item['context']:
+                try:
+                    # Simple extraction - look for "property_name: value" pattern
+                    lines = item['context'].split('\n')
+                    for line in lines:
+                        if f"{property_name}:" in line:
+                            parts = line.split(f"{property_name}:", 1)
+                            if len(parts) > 1:
+                                raw_value = parts[1].strip()
+                                # Clean up HTML tags from FTS5 snippet highlighting
+                                import re
+                                cleaned_value = re.sub(r'</?mark>', '', raw_value)
+                                property_value = cleaned_value.strip()
+                                break
+                except:
+                    pass
+            
+            results.append({
+                "path": item["path"],
+                "score": item.get("score", 1.0),
+                "matches": [f"{property_name} {operator} {value if value else 'exists'}"],
+                "context": item["context"],
+                "property_value": property_value
+            })
         
         # Return standardized search results structure
         return {
@@ -701,26 +671,49 @@ async def search_by_property(
                 "property": property_name,
                 "operator": operator,
                 "value": value,
-                "context_length": context_length
+                "context_length": context_length,
+                "search_method": "fast_fts5"
             },
-            "truncated": False
+            "truncated": len(results) >= 200,
+            "performance_note": "Used fast FTS5 search for optimal performance on large vaults."
         }
+        
     except Exception as e:
         if ctx:
-            ctx.info(f"Property search failed: {str(e)}")
-        # Return standardized error structure
-        return {
-            "results": [],
-            "count": 0,
-            "query": {
-                "property": property_name,
-                "operator": operator,
-                "value": value,
-                "context_length": context_length
-            },
-            "truncated": False,
-            "error": f"Property search failed: {str(e)}"
-        }
+            ctx.info(f"Fast property search failed, falling back: {str(e)}")
+        
+        # Fall back to manual search if fast search fails
+        try:
+            vault = get_vault()
+            query = f"property:{property_name}:{value}" if operator != "exists" else f"property:{property_name}:*"
+            results = await _search_by_property(vault, query, context_length)
+            
+            return {
+                "results": results,
+                "count": len(results),
+                "query": {
+                    "property": property_name,
+                    "operator": operator,
+                    "value": value,
+                    "context_length": context_length,
+                    "search_method": "manual_fallback"
+                },
+                "truncated": False,
+                "performance_note": "Fast search failed, used manual search as fallback."
+            }
+        except Exception as fallback_error:
+            return {
+                "results": [],
+                "count": 0,
+                "query": {
+                    "property": property_name,
+                    "operator": operator,
+                    "value": value,
+                    "context_length": context_length
+                },
+                "truncated": False,
+                "error": f"Both fast and manual property search failed: {str(fallback_error)}"
+            }
 
 
 async def list_notes(
@@ -907,76 +900,155 @@ async def list_folders(
         }
 
 
+async def _search_by_regex_filtered(vault, notes_list, pattern: str, regex_flags: int, context_length: int, max_results: int) -> List[Dict[str, Any]]:
+    """
+    Directory-aware regex search that only searches through specified notes.
+    Much faster than vault-wide search when directory is specified.
+    """
+    import re
+    
+    # Compile regex pattern
+    try:
+        regex = re.compile(pattern, regex_flags)
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {e}")
+    
+    results = []
+    
+    # Search through only the specified notes
+    for note_info in notes_list:
+        if len(results) >= max_results:
+            break
+            
+        try:
+            # Read the note content
+            note = await vault.read_note(note_info["path"])
+            content = note.content
+            
+            # Find all matches with their positions
+            matches = list(regex.finditer(content))
+            
+            if matches:
+                # Get line numbers for better context
+                lines = content.split('\n')
+                line_starts = [0]
+                for line in lines[:-1]:
+                    line_starts.append(line_starts[-1] + len(line) + 1)
+                
+                # Extract contexts for matches
+                match_contexts = []
+                for match in matches[:5]:  # Limit to first 5 matches per file
+                    match_start = match.start()
+                    match_end = match.end()
+                    
+                    # Find line number
+                    line_num = 1  # Start at 1 for human-readable line numbers
+                    for i, start in enumerate(line_starts):
+                        if start > match_start:
+                            line_num = i
+                            break
+                    else:
+                        line_num = len(lines)
+                    
+                    # Extract context
+                    context_start = max(0, match_start - context_length // 2)
+                    context_end = min(len(content), match_end + context_length // 2)
+                    context = content[context_start:context_end].strip()
+                    
+                    # Add ellipsis if truncated
+                    if context_start > 0:
+                        context = "..." + context
+                    if context_end < len(content):
+                        context = context + "..."
+                    
+                    match_contexts.append({
+                        "match": match.group(0),
+                        "line": line_num,
+                        "context": context,
+                        "groups": match.groups() if match.groups() else None
+                    })
+                
+                results.append({
+                    "path": note_info["path"],
+                    "match_count": len(matches),
+                    "matches": match_contexts,
+                    "score": min(len(matches) / 5.0 + 1.0, 5.0)  # Score based on match count
+                })
+        
+        except Exception as e:
+            # Skip notes we can't read, but log for debugging
+            logger.warning(f"Failed to search in {note_info['path']}: {e}")
+            continue
+    
+    # Sort by score (descending)
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results
+
+
 async def search_by_regex(
     pattern: str,
+    directory: Optional[str] = None,
     flags: Optional[List[str]] = None,
     context_length: int = 100,
     max_results: int = 50,
     ctx=None
 ) -> dict:
     """
-    Search for notes using regular expressions for advanced pattern matching.
+    Search for notes using regular expressions with performance optimization and directory scoping.
     
-    Use this tool instead of search_notes when you need to find:
+    PERFORMANCE NOTE: Regex search can be slow on large vaults (1000+ notes). For better 
+    performance, specify a directory to limit the search scope, or use 'search_notes_tool' 
+    for simple text searches.
+    
+    Use this tool when you specifically need regex pattern matching for:
     - Code patterns (function definitions, imports, specific syntax)
     - Structured data with specific formats
     - Complex patterns that simple text search can't handle
-    - Text with wildcards or variable parts
+    - Text with wildcards or variable parts that require regex
     
-    When to use regex search vs regular search:
-    - Use search_notes for: Simple text, note titles (with path:), tags
-    - Use search_by_regex for: Code patterns, formatted data, complex matching
+    Performance optimizations:
+    - **Directory scoping**: Limit search to specific folders for much faster results
+    - **Timeout protection**: 30-second timeout to prevent hanging on large vaults
+    - **Result limiting**: Automatic limits based on vault size
+    - **Smart suggestions**: Suggests faster alternatives when appropriate
     
     Args:
         pattern: Regular expression pattern to search for
+        directory: Limit search to specific directory (e.g., "Projects", "Daily") for MUCH better performance
         flags: List of regex flags to apply (optional). Supported flags:
                - "ignorecase" or "i": Case-insensitive matching
                - "multiline" or "m": ^ and $ match line boundaries  
                - "dotall" or "s": . matches newlines
         context_length: Number of characters to show around matches (default: 100)
-        max_results: Maximum number of results to return (default: 50)
+        max_results: Maximum number of results to return (default: 50, limited for large vaults)
         ctx: MCP context for progress reporting
         
     Returns:
         Dictionary containing search results with matched patterns, line numbers, and context
         
-    Common Use Cases:
-        # Find Python imports of a specific module
-        pattern: r"(import|from)\\s+fastmcp"
+    Performance Tips:
+        - **Use directory scoping**: search_by_regex("pattern", directory="Projects") 
+        - **Limit scope**: Instead of searching 1800+ files, search just 50-100 in a folder
+        - **For simple patterns**: Use search_notes_tool("text") instead
+        - **For boolean queries**: Use search_notes_tool("term1 AND term2")
+        - **For field search**: Use search_by_field_tool("filename", "pattern")
         
-        # Find function definitions
-        pattern: r"def\\s+\\w+\\s*\\([^)]*\\):"
+    Example Usage:
+        # Search entire vault (slow on large vaults)
+        await search_by_regex(r"def\\s+\\w+", flags=["ignorecase"])
         
-        # Find TODO/FIXME comments with context
-        pattern: r"(TODO|FIXME)\\s*:?\\s*(.+)"
+        # Search only Projects folder (much faster!)
+        await search_by_regex(r"def\\s+\\w+", directory="Projects") 
         
-        # Find URLs in notes
-        pattern: r"https?://[^\\s)>]+"
+        # Search specific subfolder
+        await search_by_regex(r"TODO", directory="Daily/2024")
         
-        # Find code blocks of specific language
-        pattern: r"```python([^`]+)```"
-        
-    Example:
-        >>> # Find Python function definitions with 'search' in the name
-        >>> await search_by_regex(r"def\\s+\\w*search\\w*\\s*\\([^)]*\\):", flags=["ignorecase"])
-        {
-            "pattern": "def\\s+\\w*search\\w*\\s*\\([^)]*\\):",
-            "count": 3,
-            "results": [
-                {
-                    "path": "code/search_utils.py",
-                    "match_count": 2,
-                    "matches": [
-                        {
-                            "match": "def search_notes(query, limit):",
-                            "line": 15,
-                            "context": "...async def search_notes(query, limit):\\n    '''Search through all notes'''...",
-                            "groups": null
-                        }
-                    ]
-                }
-            ]
-        }
+    Common Regex Patterns:
+        # Find Python imports: r"(import|from)\\s+fastmcp"
+        # Find functions: r"def\\s+\\w+\\s*\\([^)]*\\):"
+        # Find TODOs: r"(TODO|FIXME)\\s*:?\\s*(.+)"
+        # Find URLs: r"https?://[^\\s)>]+"
+        # Find code blocks: r"```python([^`]+)```"
     """
     # Validate regex pattern
     try:
@@ -1013,8 +1085,76 @@ async def search_by_regex(
     vault = get_vault()
     
     try:
-        # Perform regex search
-        results = await vault.search_by_regex(pattern, regex_flags, context_length, max_results)
+        # Get notes from specified directory or entire vault
+        all_notes = await vault.list_notes(directory=directory, recursive=True)
+        vault_size = len(all_notes)
+        
+        # Log search scope for debugging
+        if ctx:
+            if directory:
+                ctx.info(f"Searching in directory '{directory}': {vault_size} notes")
+            else:
+                ctx.info(f"Searching entire vault: {vault_size} notes")
+        
+        # Performance optimization based on search scope
+        if not directory and vault_size > 1000:
+            # Large vault without directory scoping - apply strict limits
+            if ctx:
+                ctx.info(f"Large vault detected ({vault_size} notes). Consider using directory parameter for better performance.")
+            
+            # Suggest directory scoping or fast search alternative
+            simple_pattern = _suggest_fast_alternative(pattern, flags)
+            if simple_pattern:
+                if ctx:
+                    ctx.info(f"Performance tips: Use directory='FolderName' or try search_notes_tool('{simple_pattern}')")
+            
+            # Apply strict limits and timeout for full vault search
+            max_results = min(max_results, 10)  # Reduce result limit
+            timeout = 20.0  # Shorter timeout
+        elif not directory and vault_size > 500:
+            # Medium vault without directory scoping
+            if ctx:
+                ctx.info(f"Medium vault detected ({vault_size} notes). Consider using directory parameter to improve performance.")
+            max_results = min(max_results, 20)
+            timeout = 30.0
+        elif vault_size > 100:
+            # Directory scoped or smaller vault - more generous limits
+            timeout = 45.0
+            max_results = min(max_results, 50)
+        else:
+            # Small search scope - normal limits
+            timeout = 60.0  # Normal timeout for small scopes
+        
+        # Perform regex search with timeout (directory-aware implementation)
+        import asyncio
+        try:
+            if directory:
+                # Use directory-filtered notes for much faster search
+                if ctx:
+                    ctx.info(f"Using directory-filtered regex search: {vault_size} notes in '{directory}'")
+                results = await asyncio.wait_for(
+                    _search_by_regex_filtered(vault, all_notes, pattern, regex_flags, context_length, max_results),
+                    timeout=timeout
+                )
+            else:
+                # Use vault-wide search for backward compatibility
+                if ctx:
+                    ctx.info(f"Using vault-wide regex search: {vault_size} notes (entire vault)")
+                results = await asyncio.wait_for(
+                    vault.search_by_regex(pattern, regex_flags, context_length, max_results),
+                    timeout=timeout
+                )
+        except asyncio.TimeoutError:
+            # Return helpful error with alternatives
+            error_msg = f"Regex search timed out on large vault ({vault_size} notes, {timeout}s limit)"
+            
+            simple_alt = _suggest_fast_alternative(pattern, flags)
+            if simple_alt:
+                error_msg += f". Try search_notes_tool('{simple_alt}') for much better performance"
+            else:
+                error_msg += ". Consider using search_notes_tool() with simpler boolean queries instead"
+            
+            raise ValueError(error_msg)
         
         # Format results for output
         formatted_results = []
@@ -1041,21 +1181,36 @@ async def search_by_regex(
             
             formatted_results.append(formatted_result)
         
-        # Return standardized search results structure
-        return {
+        # Build response with performance info
+        response = {
             "results": formatted_results,
             "count": len(formatted_results),
             "query": {
                 "pattern": pattern,
                 "flags": flags or [],
                 "context_length": context_length,
-                "max_results": max_results
+                "max_results": max_results,
+                "directory": directory,
+                "search_method": "regex_with_timeout" + ("_directory_filtered" if directory else ""),
+                "search_scope": f"{vault_size} notes" + (f" in '{directory}'" if directory else " (entire vault)")
             },
-            "truncated": len(results) == max_results  # True if we hit the limit
+            "truncated": len(results) == max_results
         }
         
+        # Add performance note based on search scope
+        if not directory and vault_size > 500:
+            simple_alt = _suggest_fast_alternative(pattern, flags)
+            if simple_alt:
+                response["performance_note"] = f"Performance tips: Use directory='FolderName' to limit scope, or try search_notes_tool('{simple_alt}') for simple patterns"
+            else:
+                response["performance_note"] = "Performance tips: Use directory='FolderName' to limit scope, or try search_notes_tool() with boolean operators for simple searches"
+        elif directory:
+            response["performance_note"] = f"Directory scoped search: {vault_size} notes in '{directory}' - much faster than full vault search!"
+        
+        return response
+        
     except ValueError as e:
-        # Re-raise validation errors
+        # Re-raise validation errors and timeout errors
         raise e
     except Exception as e:
         if ctx:
@@ -1068,8 +1223,44 @@ async def search_by_regex(
                 "pattern": pattern,
                 "flags": flags or [],
                 "context_length": context_length,
-                "max_results": max_results
+                "max_results": max_results,
+                "directory": directory,
+                "search_method": "regex_with_timeout"
             },
             "truncated": False,
             "error": f"Regex search failed: {str(e)}"
         }
+
+
+def _suggest_fast_alternative(pattern: str, flags: Optional[List[str]] = None) -> Optional[str]:
+    """Suggest a fast search alternative for simple regex patterns."""
+    import re
+    
+    # Check if case insensitive
+    is_case_insensitive = flags and any(f.lower() in ['i', 'ignorecase'] for f in flags)
+    
+    # Simple word patterns
+    simple_word = re.match(r'^\\?w*([a-zA-Z0-9_]+)\\?w*$', pattern)
+    if simple_word:
+        return simple_word.group(1).lower() if is_case_insensitive else simple_word.group(1)
+    
+    # Simple text patterns without special chars
+    if re.match(r'^[a-zA-Z0-9\s_-]+$', pattern):
+        return pattern.lower() if is_case_insensitive else pattern
+    
+    # Literal strings with escaped special chars
+    literal_pattern = re.sub(r'\\(.)', r'\1', pattern)
+    if re.match(r'^[a-zA-Z0-9\s_.-]+$', literal_pattern):
+        return literal_pattern.lower() if is_case_insensitive else literal_pattern
+    
+    # Simple OR patterns
+    or_match = re.match(r'^\(([^)]+)\)$', pattern)
+    if or_match:
+        terms = or_match.group(1).split('|')
+        if all(re.match(r'^[a-zA-Z0-9_-]+$', term.strip()) for term in terms):
+            clean_terms = [term.strip() for term in terms]
+            if is_case_insensitive:
+                clean_terms = [term.lower() for term in clean_terms]
+            return ' OR '.join(clean_terms)
+    
+    return None

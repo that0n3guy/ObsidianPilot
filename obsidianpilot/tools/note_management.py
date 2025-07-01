@@ -227,6 +227,11 @@ async def create_note(
     try:
         note = await vault.write_note(path, content, overwrite=overwrite)
         created = True
+        
+        # Update search index in background
+        from ..utils.index_updater import update_index_for_file
+        import asyncio
+        asyncio.create_task(update_index_for_file(path))
     except FileExistsError:
         if not overwrite:
             raise FileExistsError(ERROR_MESSAGES["overwrite_protection"].format(path=path))
@@ -312,6 +317,12 @@ async def update_note(
         if create_if_not_exists:
             # Create the note
             note = await vault.write_note(path, content, overwrite=False)
+            
+            # Update search index in background
+            from ..utils.index_updater import update_index_for_file
+            import asyncio
+            asyncio.create_task(update_index_for_file(path))
+            
             # Return standardized CRUD success structure
             return {
                 "success": True,
@@ -338,6 +349,11 @@ async def update_note(
     
     # Update existing note
     note = await vault.write_note(path, final_content, overwrite=True)
+    
+    # Update search index in background
+    from ..utils.index_updater import update_index_for_file
+    import asyncio
+    asyncio.create_task(update_index_for_file(path))
     
     # Return standardized CRUD success structure
     return {
