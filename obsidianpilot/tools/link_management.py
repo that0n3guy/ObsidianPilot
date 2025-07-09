@@ -62,54 +62,92 @@ async def build_vault_notes_index(vault, force_refresh: bool = False) -> Dict[st
     return notes_index
 
 
-async def find_notes_by_names(vault, note_names: List[str]) -> Dict[str, Optional[str]]:
+async def find_notes_by_names(vault, note_names: List[str], source_path: Optional[str] = None) -> Dict[str, Optional[str]]:
     """
     Find multiple notes by their names efficiently.
     
-    Returns a dict mapping requested names to their full paths (or None if not found).
+    Implements Obsidian's link resolution algorithm:
+    1. First check relative to source note's directory
+    2. Then check for exact matches in vault
+    3. Finally check for shortest path matches
+    
+    Args:
+        vault: The vault instance
+        note_names: List of note names to find
+        source_path: Path of the note containing the links (for relative resolution)
+    
+    Returns:
+        Dict mapping requested names to their full paths (or None if not found).
     """
     # Build or get cached index
     notes_index = await build_vault_notes_index(vault)
     
+    # Get source directory for relative resolution
+    source_dir = None
+    if source_path:
+        source_dir = '/'.join(source_path.split('/')[:-1]) if '/' in source_path else ''
+    
     results = {}
     for name in note_names:
+        # Skip external URLs
+        if name.startswith('http://') or name.startswith('https://'):
+            results[name] = name
+            continue
+            
         # Ensure .md extension for lookup
         lookup_name = name if name.endswith('.md') else name + '.md'
         
-        # First check if it's already a full path that exists
+        # 1. First check relative to source note's directory
+        if source_dir is not None:
+            relative_path = f"{source_dir}/{lookup_name}" if source_dir else lookup_name
+            if relative_path in notes_index.values():
+                results[name] = relative_path
+                continue
+        
+        # 2. Check if it's already a full path that exists
         if lookup_name in notes_index.values():
             results[name] = lookup_name
         else:
-            # Look up by filename
-            results[name] = notes_index.get(lookup_name) or notes_index.get(name)
+            # 3. Look up by filename (finds shortest path match)
+            found = notes_index.get(lookup_name) or notes_index.get(name)
+            if found:
+                results[name] = found
+            else:
+                # 4. Try without extension one more time
+                name_no_ext = name[:-3] if name.endswith('.md') else name
+                results[name] = notes_index.get(name_no_ext)
     
     return results
 
 
-async def check_links_validity_batch(vault, links: List[Dict[str, str]]) -> List[Dict[str, any]]:
+async def check_links_validity_batch(vault, links: List[Dict[str, str]], source_path: Optional[str] = None) -> List[Dict[str, any]]:
     """
     Check validity of multiple links in batch for performance.
+    
+    Args:
+        vault: The vault instance
+        links: List of link dictionaries to check
+        source_path: Path of the note containing the links (for relative resolution)
     """
     # Get unique paths to check
-    unique_paths = list(set(link['path'] for link in links))
+    unique_paths = list(set(link['target'] for link in links))
     
-    # Find all notes in one go
-    found_paths = await find_notes_by_names(vault, unique_paths)
+    # Find all notes in one go (with source path for relative resolution)
+    found_paths = await find_notes_by_names(vault, unique_paths, source_path=source_path)
     
     # Update links with validity info
     results = []
     for link in links:
         link_copy = link.copy()
-        found_path = found_paths.get(link['path'])
+        found_path = found_paths.get(link['target'])
         link_copy['exists'] = found_path is not None
-        if found_path and found_path != link['path']:
-            link_copy['actual_path'] = found_path
+        link_copy['file_path'] = found_path  # The actual file path in the vault (or None if not found)
         results.append(link_copy)
     
     return results
 
 
-def extract_links_from_content(content: str) -> List[dict]:
+def extract_links_from_content(content: str, source_path: Optional[str] = None) -> List[dict]:
     """
     Extract all links from note content.
     
@@ -117,9 +155,10 @@ def extract_links_from_content(content: str) -> List[dict]:
     
     Args:
         content: The note content to extract links from
+        source_path: Path of the note containing the links (for relative resolution)
         
     Returns:
-        List of link dictionaries with path, display text, and type
+        List of link dictionaries with target, display text, and type
     """
     links = []
     
@@ -133,7 +172,7 @@ def extract_links_from_content(content: str) -> List[dict]:
             link_path += '.md'
         
         links.append({
-            'path': link_path,
+            'target': link_path,  # The target/path as written in the link
             'display_text': alias.strip() if alias else match.group(1).strip(),
             'type': 'wiki'
         })
@@ -151,7 +190,7 @@ def extract_links_from_content(content: str) -> List[dict]:
             link_path += '.md'
         
         links.append({
-            'path': link_path,
+            'target': link_path,  # The target/path as written in the link
             'display_text': match.group(1).strip(),
             'type': 'markdown'
         })
@@ -210,7 +249,8 @@ async def get_backlinks(
         - backlink_count: Number of backlinks found
         - backlinks: List of backlink information including:
           - source_path: Note containing the link
-          - link_text: The display text of the link
+          - target: The link target that matched
+          - display_text: The display text of the link
           - link_type: 'wiki' or 'markdown'
           - context: Surrounding text (if requested)
           
@@ -221,7 +261,8 @@ async def get_backlinks(
             "backlinks": [
                 {
                     "source_path": "Daily/2024-01-15.md",
-                    "link_text": "My Project",
+                    "target": "My Project",
+                    "display_text": "My Project",
                     "link_type": "wiki",
                     "context": "...working on [[My Project]] today..."
                 }
@@ -297,7 +338,8 @@ async def get_backlinks(
                     
                     backlink_info = {
                         'source_path': note_path,
-                        'link_text': link_text,
+                        'target': linked_path,  # The actual link target that matched
+                        'display_text': link_text,  # What users see (alias or target)
                         'link_type': 'wiki'
                     }
                     
@@ -312,7 +354,8 @@ async def get_backlinks(
                 if link_path in target_names:
                     backlink_info = {
                         'source_path': note_path,
-                        'link_text': match.group(1).strip(),
+                        'target': link_path,  # The actual link target that matched
+                        'display_text': match.group(1).strip(),  # What users see
                         'link_type': 'markdown'
                     }
                     
@@ -354,7 +397,7 @@ async def get_backlinks(
 
 async def get_outgoing_links(
     path: str,
-    check_validity: bool = False,
+    check_validity: bool = True,
     ctx=None
 ) -> dict:
     """
@@ -365,7 +408,7 @@ async def get_outgoing_links(
     
     Args:
         path: Path to the source note
-        check_validity: Whether to check if linked notes exist
+        check_validity: Whether to check if linked notes exist (default: True)
         ctx: MCP context for progress reporting
         
     Returns:
@@ -373,11 +416,12 @@ async def get_outgoing_links(
         - source_note: The note containing the links
         - link_count: Number of links found
         - links: List of link information including:
-          - path: The linked note path
+          - target: The target path as written in the link (e.g., "my note" or "folder/my note")
+          - display_text: The text shown to the user (from aliases or link text)
+          - file_path: The actual file path in the vault (None if file doesn't exist)
           - display_text: The display text of the link
           - type: 'wiki' or 'markdown'
           - exists: Whether the linked note exists (if check_validity=True)
-          - actual_path: The actual path if different from link path
           
     Example:
         {
@@ -385,10 +429,12 @@ async def get_outgoing_links(
             "link_count": 5,
             "links": [
                 {
-                    "path": "Projects/My Project.md",
+                    "target": "My Project",
+                    "file_path": "Projects/My Project.md",
                     "display_text": "My Project",
                     "type": "wiki",
-                    "exists": true
+                    "exists": true,
+                    "file_path": "Projects/My Project.md"
                 }
             ]
         }
@@ -411,14 +457,14 @@ async def get_outgoing_links(
     
     content = note.content
     
-    # Extract all links
-    links = extract_links_from_content(content)
+    # Extract all links (pass source path for relative resolution)
+    links = extract_links_from_content(content, source_path=path)
     
     # Check validity if requested - in batch!
     if check_validity:
         if ctx:
             ctx.info(f"Checking validity of {len(links)} links...")
-        links = await check_links_validity_batch(vault, links)
+        links = await check_links_validity_batch(vault, links, source_path=path)
     
     if ctx:
         ctx.info(f"Found {len(links)} outgoing links")
@@ -515,7 +561,7 @@ async def find_broken_links(
         """Get all links from a note."""
         try:
             note = await vault.read_note(note_path)
-            return note_path, extract_links_from_content(note.content)
+            return note_path, extract_links_from_content(note.content, source_path=note_path)
         except Exception:
             return note_path, []
     
@@ -532,29 +578,37 @@ async def find_broken_links(
     all_link_paths = set()
     for links in all_links_by_note.values():
         for link in links:
-            all_link_paths.add(link['path'])
+            all_link_paths.add(link['target'])
     
     if ctx:
         ctx.info(f"Checking validity of {len(all_link_paths)} unique links...")
     
-    # Check which links exist - in one batch!
-    found_paths = await find_notes_by_names(vault, list(all_link_paths))
-    
-    # Find broken links
+    # Check which links exist - we need to check per-note for relative resolution
+    # Group links by source note for proper relative resolution
     broken_links = []
     affected_notes_set = set()
     
     for note_path, links in all_links_by_note.items():
+        if not links:
+            continue
+            
+        # Get paths for this note's links
+        link_paths = [link['target'] for link in links]
+        found_paths = await find_notes_by_names(vault, link_paths, source_path=note_path)
+        
+        # Check for broken links
         for link in links:
-            if not found_paths.get(link['path']):
+            if not found_paths.get(link['target']):
                 broken_link_info = {
                     'source_path': note_path,
-                    'broken_link': link['path'],
+                    'broken_link': link['target'],
                     'link_text': link['display_text'],
                     'link_type': link['type']
                 }
                 broken_links.append(broken_link_info)
                 affected_notes_set.add(note_path)
+    
+    # (Moved above into the per-note checking loop)
     
     if ctx:
         ctx.info(f"Found {len(broken_links)} broken links in {len(affected_notes_set)} notes")

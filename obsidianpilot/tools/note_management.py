@@ -12,7 +12,9 @@ from ..constants import ERROR_MESSAGES
 
 
 async def read_note(
-    path: str, 
+    path: str,
+    include_outgoing_links: bool = False,
+    include_backlinks: bool = False,
     ctx: Optional[Context] = None
 ) -> dict:
     """
@@ -25,6 +27,8 @@ async def read_note(
     
     Args:
         path: Path to the note relative to vault root (e.g., "Daily/2024-01-15.md")
+        include_outgoing_links: Include all links from this note (default: False)
+        include_backlinks: Include all notes that link to this note (default: False)
         ctx: MCP context for progress reporting
         
     Returns:
@@ -39,7 +43,9 @@ async def read_note(
                 "tags": ["project", "active"],
                 "created": "2024-01-15T10:00:00Z",
                 "modified": "2024-01-15T14:30:00Z"
-            }
+            },
+            "outgoing_links": [...],  // If include_outgoing_links=True
+            "backlinks": [...]         // If include_backlinks=True
         }
     """
     # Validate path
@@ -59,8 +65,8 @@ async def read_note(
     except FileNotFoundError:
         raise FileNotFoundError(ERROR_MESSAGES["note_not_found"].format(path=path))
     
-    # Return standardized CRUD success structure
-    return {
+    # Build the response
+    result = {
         "success": True,
         "path": note.path,
         "operation": "read",
@@ -69,6 +75,32 @@ async def read_note(
             "metadata": note.metadata.model_dump(exclude_none=True)
         }
     }
+    
+    # Include links if requested
+    if include_outgoing_links or include_backlinks:
+        from ..tools.link_management import get_outgoing_links, get_backlinks
+        
+        # Run link fetching in parallel if both are requested
+        if include_outgoing_links and include_backlinks:
+            outgoing_task = asyncio.create_task(get_outgoing_links(path, check_validity=True, ctx=ctx))
+            backlinks_task = asyncio.create_task(get_backlinks(path, include_context=False, ctx=ctx))
+            
+            outgoing_result, backlinks_result = await asyncio.gather(outgoing_task, backlinks_task)
+            
+            result["details"]["outgoing_links"] = outgoing_result["findings"]
+            result["details"]["outgoing_links_summary"] = outgoing_result["summary"]
+            result["details"]["backlinks"] = backlinks_result["findings"]
+            result["details"]["backlinks_summary"] = backlinks_result["summary"]
+        elif include_outgoing_links:
+            outgoing_result = await get_outgoing_links(path, check_validity=True, ctx=ctx)
+            result["details"]["outgoing_links"] = outgoing_result["findings"]
+            result["details"]["outgoing_links_summary"] = outgoing_result["summary"]
+        elif include_backlinks:
+            backlinks_result = await get_backlinks(path, include_context=False, ctx=ctx)
+            result["details"]["backlinks"] = backlinks_result["findings"]
+            result["details"]["backlinks_summary"] = backlinks_result["summary"]
+    
+    return result
 
 
 async def _search_and_load_image(

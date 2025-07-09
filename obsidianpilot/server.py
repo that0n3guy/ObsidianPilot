@@ -106,6 +106,14 @@ async def read_note_tool(
         max_length=255,
         examples=["Daily/2024-01-15.md", "Projects/AI Research.md", "Ideas/Quick Note.md"]
     )],
+    include_outgoing_links: Annotated[bool, Field(
+        description="Include all links from this note with resolved file paths",
+        default=False
+    )] = False,
+    include_backlinks: Annotated[bool, Field(
+        description="Include all notes that link to this note",
+        default=False
+    )] = False,
     ctx=None
 ):
     """
@@ -126,12 +134,15 @@ async def read_note_tool(
         Note content and metadata including tags, aliases, and frontmatter.
         Image references (![alt](path)) are preserved in the content but images are not loaded.
         
+        If include_outgoing_links=True: Adds outgoing_links array with target, display_text, file_path, and exists fields.
+        If include_backlinks=True: Adds backlinks array with source_path, target, and display_text fields.
+        
     IMPORTANT: If the note contains image references, proactively offer to analyze them:
     "I can see this note contains [N] images. Would you like me to analyze/examine them for you?"
     Then use view_note_images to load and analyze the images if requested.
     """
     try:
-        return await read_note(path, ctx)
+        return await read_note(path, include_outgoing_links, include_backlinks, ctx)
     except (ValueError, FileNotFoundError) as e:
         raise ToolError(str(e))
     except Exception as e:
@@ -966,8 +977,8 @@ async def get_outgoing_links_tool(
     )],
     check_validity: Annotated[bool, Field(
         description="Also check if each linked note actually exists in your vault",
-        default=False
-    )] = False,
+        default=True
+    )] = True,
     ctx=None
 ):
     """
