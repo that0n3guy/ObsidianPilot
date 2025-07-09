@@ -30,16 +30,16 @@ Visit this page for details: https://modelcontextprotocol.io/quickstart/user
 
 ### 🎉 Version 2.1.0 Released!
 
-**🚀 Revolutionary Search Performance Update:**
+**🚀 Latest Updates:**
 
--   ⚡ **100-1000x faster search** - SQLite FTS5 full-text search replaces slow SQL LIKE queries
+-   🎯 **Improved link management** (v2.1.2) - Clear field names: `target`, `display_text`, `file_path`
+-   ⚡ **Better defaults** - `get_outgoing_links` now includes file paths by default
+-   🔗 **Enhanced read_note** - Optional flags to include outgoing links and backlinks in one call
+-   📍 **Accurate link resolution** - Matches Obsidian's relative path resolution behavior
 -   🔍 **Boolean search operators** - Use AND, OR, NOT for complex queries like `"Eide Bailly OR CPA OR accounting"`
+-   ⚡ **100-1000x faster search** - SQLite FTS5 full-text search replaces slow SQL LIKE queries
 -   🚫 **No more timeouts** - Search tools that hung indefinitely on large vaults (1800+ notes) now complete in <0.5 seconds
--   🤖 **Smart auto-optimization** - Tools automatically detect vault size and choose fastest search method
--   🗂️ **Field-specific search** - Target filename, tags, properties, or content with optimized indexes
 -   🔄 **Background indexing** - Index builds automatically without blocking AI interactions
--   📊 **Search analytics** - Monitor index status and performance with built-in stats
--   🎯 **Intelligent fallbacks** - Seamless compatibility with legacy search tools
 
 **Previous v2.0 features:**
 -   🖼️ **Image support** - View and analyze images from your vault
@@ -62,7 +62,8 @@ ObsidianPilot is an enhanced Model Context Protocol (MCP) server that enables AI
 -   🗂️ **Property search** - Query notes by frontmatter properties with operators (=, >, <, contains, exists)
 -   📁 **Browse vault** - List and navigate your notes and folders by directory
 -   🏷️ **Tag management** - Add, remove, and organize tags (supports hierarchical tags, frontmatter, and inline tags)
--   🔗 **Link management** - Find backlinks, analyze outgoing links, and identify broken links
+-   🔗 **Advanced link management** - Find backlinks, analyze outgoing links with resolved paths, and identify broken links
+-   📦 **Efficient API** - Enhanced read_note tool can fetch content and links in a single call
 -   ✏️ **Smart rename** - Rename notes with automatic link updates throughout your vault
 -   📊 **Note insights** - Get statistics like word count and link analysis
 -   🎯 **AI-optimized** - Clear error messages and smart defaults for better AI interactions
@@ -174,10 +175,12 @@ Read the content and metadata of a specific note.
 **Parameters:**
 
 -   `path`: Path to the note (e.g., "Daily/2024-01-15.md")
+-   `include_outgoing_links` (default: `false`): Include all links from this note with resolved file paths
+-   `include_backlinks` (default: `false`): Include all notes that link to this note
 
 **Returns:**
 
-{ "path": "Daily/2024-01-15.md", "content": "\# Daily Note\\n\\nContent here...", "metadata": { "tags": \["daily", "journal"\], "aliases": \[\], "frontmatter": {} } }
+{ "path": "Daily/2024-01-15.md", "content": "\# Daily Note\\n\\nContent here...", "metadata": { "tags": \["daily", "journal"\], "aliases": \[\], "frontmatter": {} }, "outgoing_links": \[...\], // If include_outgoing_links=true "backlinks": \[...\] // If include_backlinks=true }
 
 ##### `create_note`
 
@@ -711,17 +714,37 @@ List all links from a specific note.
 **Parameters:**
 
 -   `path`: Path to the note to extract links from
--   `check_validity` (default: `false`): Whether to check if linked notes exist
+-   `check_validity` (default: `true`): Whether to check if linked notes exist and get resolved file paths
 
 **Returns:**
 
-{ "source\_note": "Projects/Overview.md", "link\_count": 8, "links": \[ { "path": "Projects/AI Research.md", "display\_text": "AI Research", "type": "wiki", "exists": true } \] }
+{ "source\_note": "Projects/Overview.md", "link\_count": 8, "links": \[ { "target": "AI Research", "display\_text": "AI Research", "type": "wiki", "exists": true, "file\_path": "Projects/AI Research.md" } \] }
 
 **Use cases:**
 
 -   Understanding what a note references
 -   Checking note dependencies before moving/deleting
 -   Exploring the structure of index or hub notes
+
+##### `get_backlinks`
+
+Find all notes that link to a specific note (incoming links).
+
+**Parameters:**
+
+-   `path`: Path to the target note
+-   `include_context` (default: `true`): Include surrounding text context
+-   `context_length` (default: `100`): Characters of context to include
+
+**Returns:**
+
+{ "target\_note": "Projects/My Project.md", "backlink\_count": 3, "backlinks": \[ { "source\_path": "Daily/2024-01-15.md", "target": "My Project", "display\_text": "My Project", "link\_type": "wiki", "context": "...working on \[\[My Project\]\] today..." } \] }
+
+**Use cases:**
+
+-   Understanding which notes reference a concept or topic
+-   Discovering relationships between notes
+-   Building a mental map of note connections
 
 ##### `find_broken_links`
 
@@ -734,7 +757,7 @@ Find all broken links in the vault, a specific directory, or a single note.
 
 **Returns:**
 
-{ "directory": "/", "broken\_link\_count": 3, "affected\_notes": 2, "broken\_links": \[ { "source\_path": "Projects/Overview.md", "broken\_link": "Projects/Old Name.md", "link\_text": "Old Project", "link\_type": "wiki" } \] }
+{ "directory": "/", "broken\_link\_count": 3, "affected\_notes": 2, "broken\_links": \[ { "source\_path": "Projects/Overview.md", "broken\_link": "Projects/Old Name.md", "display\_text": "Old Project", "link\_type": "wiki" } \] }
 
 **Use cases:**
 
