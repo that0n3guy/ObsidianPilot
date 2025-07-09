@@ -28,7 +28,7 @@ Visit this page for details: https://modelcontextprotocol.io/quickstart/user
 
 ---
 
-### 🎉 Version 2.1.0 Released!
+### 🎉 Version 2.1.2 Released!
 
 **🚀 Latest Updates:**
 
@@ -323,7 +323,7 @@ Delete a note from the vault.
 
 #### Search and Discovery
 
-> **🚀 Performance Note:** v2.1.0 introduces blazing-fast SQLite FTS5 search that automatically optimizes for large vaults. Search tools that previously timed out on 1800+ note vaults now complete in under 0.5 seconds!
+> **🚀 Performance Note:** v2.1.x introduces blazing-fast SQLite FTS5 search that automatically optimizes for large vaults. Search tools that previously timed out on 1800+ note vaults now complete in under 0.5 seconds!
 
 ##### `search_notes` (Ultra-Fast FTS5 Search)
 
@@ -400,7 +400,7 @@ Search for notes by creation or modification date.
 
 Search for notes using regular expressions with smart timeout protection for large vaults.
 
-**v2.1.0 Improvements:**
+**v2.1.x Improvements:**
 - **Timeout protection**: 20-30s timeouts prevent hanging on large vaults
 - **Smart suggestions**: Detects simple patterns and suggests faster alternatives
 - **Auto-optimization**: Reduces result limits and applies timeouts based on vault size
