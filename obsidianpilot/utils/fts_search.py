@@ -190,13 +190,51 @@ class FTSSearchIndex:
         query = query.replace(' and ', ' AND ')
         query = query.replace(' not ', ' NOT ')
         
+        # Check if query contains boolean operators (including partial matches)
+        has_boolean = any(op in query.upper() for op in [' OR ', ' AND ', ' NOT '])
+        
+        # Handle multi-word terms in boolean queries
+        if has_boolean:
+            # For boolean queries, we need to quote multi-word terms that aren't already quoted
+            return self._quote_multiword_terms(query)
+        
         # Handle simple multi-word queries as phrases for better results
-        if (' OR ' not in query and ' AND ' not in query and ' NOT ' not in query 
-            and ' ' in query.strip() and not query.startswith('"')):
+        if ' ' in query.strip() and not query.startswith('"'):
             # Convert "machine learning" to "machine learning" for phrase search
             return f'"{query.strip()}"'
             
         return query.strip()
+        
+    def _quote_multiword_terms(self, query: str) -> str:
+        """Quote multi-word terms in boolean queries for proper FTS5 parsing."""
+        import re
+        
+        # Split by boolean operators while preserving them
+        parts = re.split(r'\b(AND|OR|NOT)\b', query, flags=re.IGNORECASE)
+        
+        result_parts = []
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+                
+            # Skip boolean operators
+            if part.upper() in ['AND', 'OR', 'NOT']:
+                result_parts.append(part.upper())
+                continue
+                
+            # Skip already quoted terms
+            if part.startswith('"') and part.endswith('"'):
+                result_parts.append(part)
+                continue
+                
+            # Quote multi-word terms
+            if ' ' in part and not (part.startswith('"') and part.endswith('"')):
+                result_parts.append(f'"{part}"')
+            else:
+                result_parts.append(part)
+                
+        return ' '.join(result_parts)
         
     async def _simple_search(
         self, 

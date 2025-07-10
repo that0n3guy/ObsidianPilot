@@ -28,25 +28,21 @@ Visit this page for details: https://modelcontextprotocol.io/quickstart/user
 
 ---
 
-### 🎉 Version 2.1.2 Released!
+### 🎉 Version 2.1.3 Released!
 
-**🚀 Latest Updates:**
+**🚀 Key Features:**
 
--   🎯 **Improved link management** (v2.1.2) - Clear field names: `target`, `display_text`, `file_path`
--   ⚡ **Better defaults** - `get_outgoing_links` now includes file paths by default
--   🔗 **Enhanced read_note** - Optional flags to include outgoing links and backlinks in one call
+-   ⚡ **Ultra-fast search** - SQLite FTS5 with boolean operators (AND, OR, NOT) for instant results on large vaults
+-   🔍 **Smart search** - Handles multi-word terms, quoted phrases, and complex boolean queries
+-   🔗 **Advanced link management** - Find backlinks, analyze outgoing links with resolved paths, identify broken links
+-   📦 **Efficient API** - Enhanced read_note tool fetches content and links in a single call
 -   📍 **Accurate link resolution** - Matches Obsidian's relative path resolution behavior
--   🔍 **Boolean search operators** - Use AND, OR, NOT for complex queries like `"Eide Bailly OR CPA OR accounting"`
--   ⚡ **100-1000x faster search** - SQLite FTS5 full-text search replaces slow SQL LIKE queries
--   🚫 **No more timeouts** - Search tools that hung indefinitely on large vaults (1800+ notes) now complete in <0.5 seconds
--   🔄 **Background indexing** - Index builds automatically without blocking AI interactions
-
-**Previous v2.0 features:**
+-   🔄 **Background indexing** - Automatic index updates when notes change
+-   🌖 **Regex search** - Find complex patterns with optional directory scoping
+-   🏷️ **Property search** - Query by frontmatter properties with advanced operators
 -   🖼️ **Image support** - View and analyze images from your vault
--   🔍 **Powerful regex search** - Find complex patterns in your notes  
--   🚀 **Simple setup** - Quick Windows configuration guide included
--   🔄 **Direct filesystem access** - No plugins required, works offline
 -   📦 **Token-efficient editing** - Edit specific sections without rewriting entire notes
+
 
 * * *
 
